@@ -1,0 +1,13 @@
+{% for assignment in assignments %}
+<tr class="hover:bg-gray-50">
+    <td class="px-4 py-3">{{ assignment.asset.asset_tag }}</td>
+    <td class="px-4 py-3">{{ assignment.asset.asset_type }}</td>
+    <td class="px-4 py-3">{{ assignment.assigned_date.strftime('%Y-%m-%d') }}</td>
+    <td class="px-4 py-3">{{ assignment.return_date.strftime('%Y-%m-%d') }}</td>
+</tr>
+{% endfor %}
+{% if not assignments %}
+<tr>
+    <td colspan="4" class="px-4 py-3 text-gray-500 text-center">No assignment history</td>
+</tr>
+{% endif %}

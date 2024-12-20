@@ -1,0 +1,27 @@
+<tr id="assignment-{{ assignment.id }}" class="hover:bg-gray-50">
+    <td class="px-4 py-2">{{ assignment.asset.asset_tag }}</td>
+    <td class="px-4 py-2">{{ assignment.employee.name }}</td>
+    <td class="px-4 py-2">{{ assignment.assigned_date.strftime('%Y-%m-%d') }}</td>
+    <td class="px-4 py-2">
+        {% if assignment.return_date %}
+            <span class="px-2 py-1 rounded-full text-sm bg-gray-100 text-gray-800">
+                Returned
+            </span>
+        {% else %}
+            <span class="px-2 py-1 rounded-full text-sm bg-green-100 text-green-800">
+                Active
+            </span>
+        {% endif %}
+    </td>
+    <td class="px-4 py-2">
+        {% if not assignment.return_date %}
+            <button
+                class="text-red-600 hover:text-red-800"
+                hx-post="/assignments/{{ assignment.id }}/return"
+                hx-confirm="Are you sure you want to return this asset?"
+            >
+                Return Asset
+            </button>
+        {% endif %}
+    </td>
+</tr>

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <!-- Employee Information Section -->
+    <div class="border-b pb-6 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold">{{ employee.name }}</h2>
+            <button
+                class="text-gray-600 hover:text-gray-800"
+                hx-get="/employees"
+                hx-target="#main-content"
+            >
+                Back to List
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p class="text-gray-600">Email</p>
+                <p class="font-medium">{{ employee.email }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Department</p>
+                <p class="font-medium">{{ employee.department }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Assignments Section -->
+    <div class="mb-6">
+        <h3 class="text-xl font-semibold mb-4">Currently Assigned Assets</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Tag</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for assignment in employee.assignments %}
+                        {% if assignment.asset.status == 'In Use' %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">{{ assignment.asset.asset_tag }}</td>
+                            <td class="px-4 py-3">{{ assignment.asset.asset_type }}</td>
+                            <td class="px-4 py-3">{{ assignment.assigned_date.strftime('%Y-%m-%d') }}</td>
+                            <td class="px-4 py-3">
+                                <button
+                                    class="text-red-600 hover:text-red-800"
+                                    hx-post="/assignments/{{ assignment.id }}/return"
+                                    hx-confirm="Are you sure you want to return this asset?"
+                                    hx-target="#main-content"
+                                >
+                                    Return Asset
+                                </button>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="px-4 py-3 text-gray-500 text-center">No currently assigned assets</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Assignment History Section -->
+    <div>
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold">Assignment History</h3>
+            <button
+                class="text-blue-600 hover:text-blue-800 text-sm"
+                hx-get="/employees/{{ employee.id }}/history"
+                hx-target="#assignment-history"
+                hx-indicator="#history-loading"
+            >
+                View Full History
+            </button>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Tag</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Return Date</th>
+                    </tr>
+                </thead>
+                <tbody id="assignment-history" class="bg-white divide-y divide-gray-200">
+                    {% with history = employee.assignments|rejectattr('asset.status', 'equalto', 'In Use')|list %}
+                        {% for assignment in history|sort(attribute='return_date', reverse=true) %}
+                            {% if loop.index <= 5 %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3">{{ assignment.asset.asset_tag }}</td>
+                                <td class="px-4 py-3">{{ assignment.asset.asset_type }}</td>
+                                <td class="px-4 py-3">{{ assignment.assigned_date.strftime('%Y-%m-%d') }}</td>
+                                <td class="px-4 py-3">{{ assignment.return_date.strftime('%Y-%m-%d') }}</td>
+                            </tr>
+                            {% endif %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="px-4 py-3 text-gray-500 text-center">No assignment history</td>
+                            </tr>
+                        {% endfor %}
+                    {% endwith %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Loading indicator for history -->
+    <div id="history-loading" class="htmx-indicator flex justify-center py-4">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+    </div>
+</div>
+{% endblock %}

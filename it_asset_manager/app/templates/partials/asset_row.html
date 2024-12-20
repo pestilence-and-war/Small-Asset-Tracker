@@ -1,0 +1,31 @@
+<!-- templates/partials/asset_row.html -->
+<tr id="asset-{{ asset.asset_tag }}" class="hover:bg-gray-50">
+    <td class="px-4 py-2">{{ asset.asset_tag }}</td>
+    <td class="px-4 py-2">{{ asset.asset_type }}</td>
+    <td class="px-4 py-2">
+        <span class="px-2 py-1 rounded-full text-sm
+            {% if asset.status == 'Available' %}bg-green-100 text-green-800
+            {% elif asset.status == 'In Use' %}bg-blue-100 text-blue-800
+            {% elif asset.status == 'Maintenance' %}bg-yellow-100 text-yellow-800
+            {% else %}bg-gray-100 text-gray-800{% endif %}">
+            {{ asset.status }}
+        </span>
+    </td>
+    <td class="px-4 py-2">
+        <button
+            class="text-blue-600 hover:text-blue-800 mr-2"
+            hx-get="/assets/qr{{ asset.asset_tag }}"
+            hx-target="#main-content"
+        >
+            View
+        </button>
+        <button
+            class="text-green-600 hover:text-green-800"
+            hx-get="/assets/qr/{{ asset.asset_tag }}"
+            hx-target="#qr-content"
+            onclick="document.getElementById('qr-modal').classList.remove('hidden')"
+        >
+            QR Code
+        </button>
+    </td>
+</tr>

@@ -1,0 +1,33 @@
+<!-- templates/assets.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Assets</h2>
+        <button 
+            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            hx-get="/assets/add"
+            hx-target="#main-content"
+        >
+            Add Asset
+        </button>
+    </div>
+    <div id="main-content">
+        <table class="min-w-full">
+            <thead>
+                <tr>
+                    <th class="px-4 py-2 text-left">Asset Tag</th>
+                    <th class="px-4 py-2 text-left">Type</th>
+                    <th class="px-4 py-2 text-left">Status</th>
+                    <th class="px-4 py-2 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody hx-target="closest tr" hx-swap="outerHTML">
+                {% for asset in assets %}
+                    {% include "partials/asset_row.html" %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

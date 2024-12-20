@@ -1,0 +1,25 @@
+<!-- templates/partials/qr_code.html -->
+<div class="relative">
+    <button 
+        class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl"
+        onclick="document.getElementById('qr-modal').classList.add('hidden')"
+    >
+        ×
+    </button>
+    <div class="text-center">
+        <h3 class="text-lg font-semibold mb-4">Asset QR Code - {{ asset.asset_tag }}</h3>
+        <img 
+            src="data:image/png;base64,{{ qr_code }}"
+            alt="QR Code for {{ asset.asset_tag }}"
+            class="mx-auto mb-4"
+        />
+        <p class="text-sm text-gray-600 mb-4">Scan this code to view asset details</p>
+        <a 
+            href="data:image/png;base64,{{ qr_code }}"
+            download="asset-{{ asset.asset_tag }}.png"
+            class="bg-blue-500 text-white px-4 py-2 rounded inline-block hover:bg-blue-600"
+        >
+            Download QR Code
+        </a>
+    </div>
+</div>

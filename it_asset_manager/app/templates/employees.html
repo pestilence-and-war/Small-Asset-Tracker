@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Employees</h2>
+        <button 
+            class="bg-blue-500 text-white px-4 py-2 rounded"
+            hx-get="/employees/add"
+            hx-target="#main-content"
+        >
+            Add Employee
+        </button>
+    </div>
+    <div id="main-content">
+        <table class="min-w-full">
+            <thead>
+                <tr>
+                    <th class="px-4 py-2">Name</th>
+                    <th class="px-4 py-2">Email</th>
+                    <th class="px-4 py-2">Department</th>
+                    <th class="px-4 py-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody hx-target="closest tr" hx-swap="outerHTML">
+                {% for employee in employees %}
+                    {% include "partials/employee_row.html" %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
