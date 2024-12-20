@@ -5,5 +5,7 @@ from app import db
 from .asset import Asset, AssetStatus, AssetType
 from .employee import Employee
 from .assignment import Assignment
+from .maintenance import MaintenanceSchedule, MaintenanceRecord, ServiceProvider, MaintenanceContract
 
-__all__ = ['Asset', 'AssetStatus', 'AssetType', 'Employee', 'Assignment']
+__all__ = ['Asset', 'AssetStatus', 'AssetType', 'Employee', 'Assignment','MaintenanceSchedule', 'MaintenanceRecord',
+    'ServiceProvider', 'MaintenanceContract']

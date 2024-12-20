@@ -1,6 +1,8 @@
 # app/models/asset.py
+from datetime import datetime
 from app import db
 from enum import Enum
+from .maintenance import MaintenanceSchedule, MaintenanceRecord
 
 class AssetStatus(Enum):
     AVAILABLE = "Available"
@@ -19,6 +21,10 @@ class Asset(db.Model):
     asset_tag = db.Column(db.String(50), unique=True, nullable=False)
     status = db.Column(db.String(20), default=AssetStatus.AVAILABLE.value)
     details = db.Column(db.JSON)
+    maintenance_records = db.relationship('MaintenanceRecord', backref='asset', lazy=True)
+    maintenance_schedule = db.relationship('MaintenanceSchedule', backref='asset', lazy=True)
+    last_maintenance_date = db.Column(db.DateTime)
+    next_maintenance_date = db.Column(db.DateTime)
     
     # Add relationship
     assignments = db.relationship('Assignment', backref='asset', lazy=True)
@@ -53,6 +59,40 @@ class Asset(db.Model):
             self.status = AssetStatus.AVAILABLE.value
         
         self.details = details or {}
+
+    def schedule_maintenance(self, maintenance_type, frequency):
+        """Create or update maintenance schedule"""
+        schedule = MaintenanceSchedule.query.filter_by(
+            asset_id=self.id,
+            maintenance_type=maintenance_type
+        ).first()
+        
+        if not schedule:
+            schedule = MaintenanceSchedule(
+                asset_id=self.id,
+                maintenance_type=maintenance_type,
+                frequency=frequency
+            )
+            db.session.add(schedule)
+        else:
+            schedule.frequency = frequency
+            
+        db.session.commit()
+        return schedule
+
+    def get_maintenance_status(self):
+        """Get asset's maintenance status"""
+        if not self.next_maintenance_date:
+            return "No Schedule"
+            
+        today = datetime.utcnow()
+        if self.next_maintenance_date < today:
+            return "Overdue"
+        
+        days_until = (self.next_maintenance_date - today).days
+        if days_until <= 7:
+            return "Due Soon"
+        return "On Schedule"
     
     def __repr__(self):
         return f'<Asset {self.asset_tag}: {self.asset_type} ({self.status})>'
