@@ -23,6 +23,16 @@
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                 <p class="mt-1 text-sm text-gray-500">Asset tag will be automatically converted to uppercase</p>
             </div>
+
+            {% for field in custom_fields %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700">{{ field.name }}</label>
+                <input type="{{ field.type }}"
+                       name="custom_field_{{ field.id }}"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            </div>
+            {% endfor %}
+
             <button type="submit" 
                 class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
                 Add Asset

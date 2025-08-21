@@ -40,5 +40,37 @@
         </div>
         {% endif %}
     </div>
+
+    <div class="mt-6">
+        <h3 class="text-lg font-semibold">Custom Fields</h3>
+        <div class="mt-4 grid grid-cols-2 gap-4">
+            {% for value in asset.custom_field_values %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500">{{ value.field.name }}</h3>
+                <p class="mt-1">{{ value.value }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt-6">
+        <h3 class="text-lg font-semibold">Asset History</h3>
+        <div class="mt-4 space-y-4">
+            {% for entry in asset.history|sort(attribute='timestamp', reverse=True) %}
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <div class="flex justify-between">
+                    <p class="font-semibold">{{ entry.event_type }}</p>
+                    <p class="text-sm text-gray-500">{{ entry.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <p class="mt-1 text-gray-700">{{ entry.details }}</p>
+                {% if entry.user %}
+                <p class="mt-1 text-sm text-gray-500">By: {{ entry.user.username }}</p>
+                {% endif %}
+            </div>
+            {% else %}
+            <p>No history found for this asset.</p>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 {% endblock %}

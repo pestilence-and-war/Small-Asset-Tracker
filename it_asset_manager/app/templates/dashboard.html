@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Dashboard</h2>
+        <a href="{{ url_for('dashboard.download_report') }}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Download Report
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Total Assets -->
+        <div class="bg-blue-100 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold text-blue-800">Total Assets</h3>
+            <p class="text-3xl font-bold text-blue-900 mt-2">{{ total_assets }}</p>
+        </div>
+
+        <!-- Assets by Status -->
+        <div class="bg-green-100 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold text-green-800">Assets by Status</h3>
+            <ul class="mt-2 space-y-1">
+                {% for status, count in assets_by_status %}
+                <li class="flex justify-between">
+                    <span>{{ status }}</span>
+                    <span class="font-semibold">{{ count }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Assets by Type -->
+        <div class="bg-yellow-100 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold text-yellow-800">Assets by Type</h3>
+            <ul class="mt-2 space-y-1">
+                {% for type, count in assets_by_type %}
+                <li class="flex justify-between">
+                    <span>{{ type }}</span>
+                    <span class="font-semibold">{{ count }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="mt-6">
+        <h3 class="text-lg font-semibold">Recently Added Assets</h3>
+        <table class="min-w-full mt-2">
+            <thead>
+                <tr>
+                    <th class="px-4 py-2 text-left">Asset Tag</th>
+                    <th class="px-4 py-2 text-left">Type</th>
+                    <th class="px-4 py-2 text-left">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for asset in recent_assets %}
+                <tr>
+                    <td class="px-4 py-2">{{ asset.asset_tag }}</td>
+                    <td class="px-4 py-2">{{ asset.asset_type }}</td>
+                    <td class="px-4 py-2">{{ asset.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

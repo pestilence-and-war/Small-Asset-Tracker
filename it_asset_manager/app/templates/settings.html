@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold mb-4">Settings</h2>
+
+    <div class="mb-6">
+        <h3 class="text-lg font-semibold mb-2">Custom Fields</h3>
+        <form method="POST" action="{{ url_for('settings.add_custom_field') }}">
+            {{ custom_field_form.hidden_tag() }}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    {{ custom_field_form.name.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ custom_field_form.name(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+                </div>
+                <div>
+                    {{ custom_field_form.type.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ custom_field_form.type(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+                </div>
+                <div>
+                    {{ custom_field_form.submit(class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600") }}
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="mb-6">
+        <h3 class="text-lg font-semibold mb-2">Email Settings</h3>
+        <form method="POST" action="{{ url_for('settings.settings') }}">
+            {{ email_form.hidden_tag() }}
+            <div class="space-y-4">
+                <div>
+                    {{ email_form.mail_server.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ email_form.mail_server(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+                </div>
+                <div>
+                    {{ email_form.mail_port.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ email_form.mail_port(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+                </div>
+                <div class="flex items-center">
+                    {{ email_form.mail_use_tls(class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded") }}
+                    {{ email_form.mail_use_tls.label(class="ml-2 block text-sm text-gray-900") }}
+                </div>
+                <div>
+                    {{ email_form.mail_username.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ email_form.mail_username(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+                </div>
+                <div>
+                    {{ email_form.mail_password.label(class="block text-sm font-medium text-gray-700") }}
+                    {{ email_form.mail_password(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+                </div>
+                <div>
+                    <input type="submit" name="email_submit" value="Save Email Settings" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div>
+        <h3 class="text-lg font-semibold mb-2">Existing Custom Fields</h3>
+        <table class="min-w-full">
+            <thead>
+                <tr>
+                    <th class="px-4 py-2 text-left">Name</th>
+                    <th class="px-4 py-2 text-left">Type</th>
+                    <th class="px-4 py-2 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for field in fields %}
+                <tr>
+                    <td class="px-4 py-2">{{ field.name }}</td>
+                    <td class="px-4 py-2">{{ field.type }}</td>
+                    <td class="px-4 py-2">
+                        <form method="POST" action="{{ url_for('settings.delete_custom_field', id=field.id) }}" style="display:inline;">
+                            <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
