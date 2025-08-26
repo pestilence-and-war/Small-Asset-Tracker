@@ -1,0 +1,12 @@
+<form hx-post="/edit_ingredient/{{ ingredient.id }}" hx-target="closest li" hx-swap="outerHTML" class="edit-form">
+    <div class="form-inputs">
+        <input type="text" name="name" value="{{ ingredient.name }}" required>
+        <input type="number" name="quantity" value="{{ '%.2f'|format(ingredient.quantity) }}" step="any" required>
+        <span>{{ ingredient.base_unit }}</span>
+    </div>
+    <div class="form-buttons">
+        <button type="submit" class="save-btn">Save</button>
+        <button type="button" hx-get="/ingredient/{{ ingredient.id }}" hx-target="closest li" hx-swap="outerHTML" class="cancel-btn">Cancel</button>
+        <button type="button" hx-delete="/delete_ingredient/{{ ingredient.id }}" hx-confirm="Are you sure?" hx-target="closest li" hx-swap="outerHTML" class="delete-btn">Delete</button>
+    </div>
+</form>
