@@ -35,7 +35,9 @@
         <!-- Pantry Summary -->
         <h2>Pantry Summary</h2>
         <div id="ingredient-list-container">
-            {% include '_ingredients_list.html' with {'ingredients': ingredients, 'show_edit_buttons': False} %}
+            {% with show_edit_buttons=False %}
+                {% include '_ingredients_list.html' %}
+            {% endwith %}
         </div>
         <a href="/pantry" class="button">Edit Pantry</a>
 

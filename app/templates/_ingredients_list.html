@@ -1,7 +1,9 @@
 <div id="ingredient-list-container" hx-swap-oob="true">
     <ul id="ingredient-list">
         {% for ingredient in ingredients %}
-            {% include '_ingredient_item.html' with {'ingredient': ingredient, 'show_edit_buttons': show_edit_buttons} %}
+            {% with ingredient=ingredient, show_edit_buttons=show_edit_buttons %}
+                {% include '_ingredient_item.html' %}
+            {% endwith %}
         {% endfor %}
     </ul>
 </div>
