@@ -1,0 +1,8 @@
+<li id="ingredient-{{ ingredient.id }}">
+    <span>{{ ingredient.name }}</span>
+    <span class="ingredient-quantity">
+        <button class="quantity-btn" hx-post="/update_quantity" hx-vals='{"id": "{{ ingredient.id }}", "change": "-1"}' hx-target="#ingredient-{{ ingredient.id }}" hx-swap="outerHTML">-</button>
+        {{ ingredient.quantity | round(2) }} {{ ingredient.unit }}
+        <button class="quantity-btn" hx-post="/update_quantity" hx-vals='{"id": "{{ ingredient.id }}", "change": "1"}' hx-target="#ingredient-{{ ingredient.id }}" hx-swap="outerHTML">+</button>
+    </span>
+</li>

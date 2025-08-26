@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantry Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <h1>Pantry Manager</h1>
+
+    <!-- Cook a Meal Section -->
+    <h2>Cook a Meal</h2>
+    <form hx-post="/deduct_meal" hx-target="#ingredient-list-container" hx-swap="innerHTML">
+        <select name="meal_id">
+            <option value="">Select a meal...</option>
+            {% for meal in meals %}
+                <option value="{{ meal.id }}">{{ meal.name }}</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
+        <button type="submit">Cook</button>
+    </form>
+
+    <!-- Add Ingredient Section -->
+    <h2>Add Ingredient</h2>
+    <form hx-post="/add_ingredient" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on::after-request="this.reset()">
+        <input type="text" name="ingredient_name" placeholder="Enter ingredient name" required
+               hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
+               autocomplete="off">
+        <div id="search-results"></div>
+        <input type="number" name="quantity" placeholder="Quantity" value="1" min="0" step="any">
+        <input type="text" name="unit" placeholder="Unit (e.g., g, ml, unit)">
+        <button type="submit">Add Ingredient</button>
+    </form>
+
+    <!-- Pantry List -->
+    <h2>My Pantry</h2>
+    <div id="ingredient-list-container">
+        {% include '_ingredients_list.html' %}
+    </div>
+</body>
+</html>
