@@ -1,0 +1,13 @@
+<ul>
+    {% for ingredient in ingredients %}
+        <li>
+            <form hx-post="/add_ingredient_to_cooking_session" hx-target=".recipe-checklist" hx-swap="beforeend">
+                <input type="hidden" name="ingredient_id" value="{{ ingredient.id }}">
+                Add "{{ ingredient.name }}"
+                <input type="number" name="quantity" placeholder="Qty" required style="width: 60px;">
+                <span>{{ ingredient.base_unit }}</span>
+                <button type="submit" class="button-small">Add</button>
+            </form>
+        </li>
+    {% endfor %}
+</ul>

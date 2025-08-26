@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Recipe: {{ meal.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Edit Recipe: {{ meal.name }}</h1>
+
+        <!-- Ingredients in this meal -->
+        <div id="meal-ingredients-list">
+            {% include '_meal_ingredients_list.html' %}
+        </div>
+
+        <hr>
+
+        <!-- Add ingredient to meal -->
+        <div id="add-ingredient-to-meal-container">
+            <h2>Add Ingredient to Recipe</h2>
+            <form hx-post="/add_ingredient_to_meal/{{ meal.id }}" hx-target="#meal-ingredients-list" hx-swap="innerHTML">
+                <div class="search-container">
+                    <input id="ingredient-search-input" type="search" name="q" placeholder="Search for an ingredient to add..."
+                           hx-post="/search_ingredients_for_recipe/{{ meal.id }}"
+                           hx-trigger="keyup changed delay:500ms, search"
+                           hx-target="#search-results-for-recipe"
+                           hx-swap="innerHTML">
+                    <div id="search-results-for-recipe"></div>
+                </div>
+
+                <input type="number" step="any" name="quantity" placeholder="Quantity" required>
+                <input type="text" name="unit" placeholder="Unit (e.g., cup, g, oz)" required>
+                <button type="submit" class="button-primary">Add to Recipe</button>
+            </form>
+        </div>
+
+        <div id="user-prompts"></div>
+
+        <p><a href="/recipes" class="button">Back to Recipe Manager</a></p>
+    </div>
+</body>
+</html>

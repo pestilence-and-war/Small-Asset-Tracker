@@ -1,0 +1,17 @@
+<h2>Available Meals</h2>
+<ul class="meals-list">
+    {% for meal in meals %}
+        <li>
+            <span class="meal-name">{{ meal.name }}</span>
+            <div class="meal-actions">
+                <a href="/meal/{{ meal.id }}" class="button">Cook</a>
+                <a href="/recipe/{{ meal.id }}" class="button">Manage</a>
+                <button hx-delete="/delete_meal/{{ meal.id }}" hx-target="closest li" hx-swap="outerHTML" hx-confirm="Are you sure you want to delete this meal?" class="button-danger">
+                    Delete
+                </button>
+            </div>
+        </li>
+    {% else %}
+        <li>No meals found.</li>
+    {% endfor %}
+</ul>

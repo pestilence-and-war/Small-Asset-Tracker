@@ -50,10 +50,17 @@
 
             <hr>
 
-            <!-- Placeholder for on-the-fly additions -->
+            <!-- On-the-fly additions -->
             <div id="side-item-adder">
                 <h4>Add side items or extra ingredients?</h4>
-                <!-- This could be a search box similar to the main page -->
+                <div class="search-container">
+                    <input type="search" name="q" placeholder="Search for an ingredient to add..."
+                           hx-post="/search_ingredients_for_cooking"
+                           hx-trigger="keyup changed delay:500ms, search"
+                           hx-target="#search-results-for-cooking"
+                           hx-swap="innerHTML">
+                    <div id="search-results-for-cooking"></div>
+                </div>
             </div>
 
             <hr>
