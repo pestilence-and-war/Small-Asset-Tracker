@@ -327,6 +327,129 @@ def delete_ingredient(ing_id):
 
     return "" # Return an empty string as the element will be removed from the DOM
 
+def get_meal_ingredients(meal_id):
+    conn = get_db_connection()
+    meal_ingredients = conn.execute("""
+        SELECT i.name, mi.quantity, mi.unit, mi.id as meal_ingredient_id
+        FROM meal_ingredients mi
+        JOIN ingredients i ON mi.ingredient_id = i.id
+        WHERE mi.meal_id = ?
+        ORDER BY i.name
+    """, (meal_id,)).fetchall()
+    conn.close()
+    return meal_ingredients
+
+@app.route('/recipe/<int:meal_id>')
+def recipe_editor(meal_id):
+    conn = get_db_connection()
+    meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
+    conn.close()
+    meal_ingredients = get_meal_ingredients(meal_id)
+    return render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients)
+
+@app.route('/add_ingredient_to_meal/<int:meal_id>', methods=['POST'])
+def add_ingredient_to_meal(meal_id):
+    ingredient_name = request.form['q'].strip().lower()
+    quantity = request.form['quantity']
+    unit = request.form['unit'].strip().lower()
+
+    if not all([ingredient_name, quantity, unit]):
+        # Handle error: all fields required
+        return "All fields are required."
+
+    conn = get_db_connection()
+    try:
+        # Find ingredient by name
+        ingredient = conn.execute("SELECT id FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
+        if not ingredient:
+            # Optionally, create the ingredient if it doesn't exist
+            return f"Ingredient '{ingredient_name}' not found in pantry."
+
+        ingredient_id = ingredient['id']
+        try:
+            ingredient_quantity = float(quantity)
+        except ValueError:
+            return "Invalid quantity."
+
+        conn.execute(
+            "INSERT INTO meal_ingredients (meal_id, ingredient_id, quantity, unit) VALUES (?, ?, ?, ?)",
+            (meal_id, ingredient_id, ingredient_quantity, unit)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error adding ingredient to meal: {e}")
+    finally:
+        conn.close()
+
+    conn = get_db_connection()
+    meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
+    conn.close()
+    meal_ingredients = get_meal_ingredients(meal_id)
+    return render_template('_meal_ingredients_list.html', meal=meal, meal_ingredients=meal_ingredients)
+
+@app.route('/remove_ingredient_from_meal/<int:meal_id>/<int:meal_ingredient_id>', methods=['DELETE'])
+def remove_ingredient_from_meal(meal_id, meal_ingredient_id):
+    conn = get_db_connection()
+    try:
+        conn.execute("DELETE FROM meal_ingredients WHERE id = ?", (meal_ingredient_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"Error removing ingredient from meal: {e}")
+    finally:
+        conn.close()
+    return ""
+
+@app.route('/search_ingredients_for_recipe/<int:meal_id>', methods=['POST'])
+def search_ingredients_for_recipe(meal_id):
+    query = request.form.get('q', '').strip().lower()
+    conn = get_db_connection()
+    if query:
+        ingredients = conn.execute(
+            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
+            (query + '%',)
+        ).fetchall()
+    else:
+        ingredients = []
+    conn.close()
+    return render_template('_search_results_for_recipe.html', ingredients=ingredients, meal_id=meal_id)
+
+@app.route('/select_ingredient', methods=['POST'])
+def select_ingredient():
+    ingredient_name = request.form['ingredient_name']
+    meal_id = request.form['meal_id']
+    return f'<input id="ingredient-search-input" type="search" name="q" value="{ingredient_name}" placeholder="Search for an ingredient to add..." hx-post="/search_ingredients_for_recipe/{meal_id}" hx-trigger="keyup changed delay:500ms, search" hx-target="#search-results-for-recipe" hx-swap="innerHTML">'
+
+@app.route('/meal/<int:meal_id>')
+def meal_page(meal_id):
+    conn = get_db_connection()
+    meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
+    conn.close()
+    meal_ingredients = get_meal_ingredients(meal_id)
+    return render_template('meal.html', meal=meal, meal_ingredients=meal_ingredients)
+
+@app.route('/search_ingredients_for_cooking', methods=['POST'])
+def search_ingredients_for_cooking():
+    query = request.form.get('q', '').strip().lower()
+    conn = get_db_connection()
+    if query:
+        ingredients = conn.execute(
+            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
+            (query + '%',)
+        ).fetchall()
+    else:
+        ingredients = []
+    conn.close()
+    return render_template('_search_results_for_cooking.html', ingredients=ingredients)
+
+@app.route('/add_ingredient_to_cooking_session', methods=['POST'])
+def add_ingredient_to_cooking_session():
+    ingredient_id = request.form['ingredient_id']
+    quantity = request.form['quantity']
+    conn = get_db_connection()
+    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+    conn.close()
+    return render_template('_cooking_session_ingredient.html', ingredient=ingredient, quantity=quantity)
+
 @app.route('/update_pantry', methods=['POST'])
 def update_pantry():
     # A list of strings like "ingredient_id_quantity_to_deduct"
@@ -350,3 +473,42 @@ def update_pantry():
         return f"<h4>Error: {e}</h4><p>Could not update pantry.</p>"
     finally:
         if conn: conn.close()
+
+@app.route('/recipes')
+def recipes():
+    meals = get_all_meals()
+    return render_template('recipe_manager.html', meals=meals)
+
+@app.route('/add_meal', methods=['POST'])
+def add_meal():
+    meal_name = request.form['meal_name'].strip().lower()
+    if meal_name:
+        conn = get_db_connection()
+        try:
+            conn.execute("INSERT INTO meals (name) VALUES (?)", (meal_name,))
+            conn.commit()
+        except conn.IntegrityError:
+            # Meal already exists
+            pass
+        finally:
+            conn.close()
+
+    meals = get_all_meals()
+    return render_template('_meals_list.html', meals=meals)
+
+@app.route('/delete_meal/<int:meal_id>', methods=['DELETE'])
+def delete_meal(meal_id):
+    conn = get_db_connection()
+    try:
+        # First, delete references in meal_ingredients
+        conn.execute("DELETE FROM meal_ingredients WHERE meal_id = ?", (meal_id,))
+        # Then, delete the meal itself
+        conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"Error deleting meal: {e}")
+        # Optionally, handle the error in the UI
+    finally:
+        conn.close()
+
+    return "" # Return an empty string as the element will be removed from the DOM
