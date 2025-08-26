@@ -68,17 +68,20 @@ def add_ingredient():
             if not base_unit_type:
                 raise ValueError(f"Cannot determine type for unit '{unit}'. Please use a standard unit (e.g., g, ml, oz, cup).")
 
-            # If the user enters a volume unit for a new ingredient, prompt for density.
-            if base_unit_type == 'volume':
+            # If the user adds a new ingredient that has a mass or volume, we need its density
+            # to allow for future conversions. We will standardize on 'g' as the base unit.
+            if base_unit_type in ['mass', 'volume']:
                 conn.close()
+                # We pass the original unit to the prompt function to make it more informative.
                 response = make_response(get_new_ingredient_conversion_prompt_html(ingredient_name, quantity, unit))
                 response.headers['HX-Retarget'] = '#user-prompts'
-                response.headers['HX-Reswap'] = 'innerHTML' # Explicitly set swap style
+                response.headers['HX-Reswap'] = 'innerHTML'
                 return response
 
+            # This logic will now only apply to 'count' type ingredients, as mass/volume types
+            # are handled by the density prompt and its corresponding route.
             base_unit = get_base_unit(base_unit_type)
-            # For a new ingredient, we convert to its determined base unit.
-            converted_quantity, _, _ = convert_to_base(quantity, unit)
+            converted_quantity, _, _ = convert_to_base(quantity, unit) # This will just be the quantity itself for 'count'
 
             cursor = conn.cursor()
             cursor.execute(
@@ -173,41 +176,45 @@ def add_conversion():
     # This response will replace the #ingredient-list-container, thus clearing the prompt
     return make_response(response_html)
 
-@app.route('/add_new_ingredient_with_conversion', methods=['POST'])
-def add_new_ingredient_with_conversion():
+@app.route('/add_new_ingredient_with_density', methods=['POST'])
+def add_new_ingredient_with_density():
     ingredient_name = request.form['ingredient_name'].strip().lower()
     original_quantity = float(request.form['original_quantity'])
     original_unit = request.form['original_unit']
-    factor = float(request.form['factor'])
-    to_unit = request.form['to_unit'] # This will be 'g'
+    density_g_ml = float(request.form['density_g_ml'])
 
     conn = get_db_connection()
     try:
-        # 1. Create the new ingredient, with base unit 'g' (mass)
+        # 1. Create the new ingredient.
+        # When adding with a volume unit, we standardize the base unit to 'g'.
+        base_unit = 'g'
+        base_unit_type = 'mass'
+
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)',
-            (ingredient_name, 0, to_unit, 'mass') # Start with 0 quantity
+            'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, density_g_ml) VALUES (?, ?, ?, ?, ?)',
+            (ingredient_name, 0, base_unit, base_unit_type, density_g_ml)
         )
         ingredient_id = cursor.lastrowid
+        conn.commit() # Commit the insert to make the ingredient available for conversion
 
-        # 2. Save the new conversion factor
-        conn.execute(
-            "INSERT INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
-            (ingredient_id, original_unit, to_unit, factor)
-        )
+        # 2. Convert the original quantity to the base quantity using the new density.
+        # We need a new connection/cursor for convert_to_base to see the new ingredient.
+        conn.close()
+        conn = get_db_connection()
 
-        # 3. Convert the original quantity to the base quantity and add it
-        converted_quantity = original_quantity * factor
+        converted_quantity, _, _ = convert_to_base(original_quantity, original_unit, ingredient_id)
+
+        # 3. Update the ingredient with the correct converted quantity.
         conn.execute(
             "UPDATE ingredients SET quantity = ? WHERE id = ?",
             (converted_quantity, ingredient_id)
         )
-
         conn.commit()
+
     except Exception as e:
-        print(f"Error in add_new_ingredient_with_conversion: {e}")
-        # Optionally handle error
+        print(f"Error in add_new_ingredient_with_density: {e}")
+        # Optionally handle error, e.g., by returning an error message to the user
     finally:
         if conn: conn.close()
 

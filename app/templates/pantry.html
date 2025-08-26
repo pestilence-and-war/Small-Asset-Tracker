@@ -25,9 +25,24 @@
                    autocomplete="off">
             <div id="search-results"></div>
             <input type="number" name="quantity" placeholder="Quantity" value="1" min="0" step="any">
-            <input type="text" name="unit" placeholder="Unit (e.g., g, ml, cup, oz)">
+            <input type="text" name="unit" placeholder="Unit (e.g., g, ml, cup, oz)" list="unit-suggestions">
+            <datalist id="unit-suggestions">
+                <option value="g">
+                <option value="kg">
+                <option value="lb">
+                <option value="oz">
+                <option value="ml">
+                <option value="l">
+                <option value="cup">
+                <option value="tbsp">
+                <option value="tablespoon">
+                <option value="tsp">
+                <option value="teaspoon">
+                <option value="unit">
+            </datalist>
             <button type="submit">Add Ingredient</button>
         </form>
+        <div class="small-text">Acceptable units: g, kg, lb, oz, ml, l, cup, tbsp, tablespoon, tsp, teaspoon, unit.</div>
 
         <!-- Area for server-side prompts like unit conversions -->
         <div id="user-prompts"></div>

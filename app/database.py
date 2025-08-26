@@ -21,7 +21,8 @@ def init_db():
             name TEXT NOT NULL UNIQUE,
             quantity REAL NOT NULL DEFAULT 0,
             base_unit TEXT, -- e.g., 'g', 'ml', 'unit'
-            base_unit_type TEXT -- e.g., 'mass', 'volume', 'count'
+            base_unit_type TEXT, -- e.g., 'mass', 'volume', 'count'
+            density_g_ml REAL -- Grams per milliliter, for mass-volume conversion
         )
     ''')
     conn.execute('''
@@ -75,14 +76,20 @@ def seed_db():
         return
 
     # Seed Ingredients
+    # Densities: flour (0.53), sugar (0.7), milk (1.04), butter (0.911), salt (1.217), baking powder (0.9), vanilla (0.95), pepper (0.4)
     ingredients_to_seed = [
-        ('flour', 1000, 'g', 'mass'), ('sugar', 1000, 'g', 'mass'),
-        ('eggs', 12, 'unit', 'count'), ('milk', 2000, 'ml', 'volume'),
-        ('butter', 500, 'g', 'mass'), ('salt', 500, 'g', 'mass'),
-        ('baking powder', 100, 'g', 'mass'), ('vanilla extract', 100, 'ml', 'volume')
+        ('flour', 1000, 'g', 'mass', 0.53),
+        ('sugar', 1000, 'g', 'mass', 0.7),
+        ('eggs', 12, 'unit', 'count', None),
+        ('milk', 2000, 'ml', 'volume', 1.04),
+        ('butter', 500, 'g', 'mass', 0.911),
+        ('salt', 500, 'g', 'mass', 1.217),
+        ('baking powder', 100, 'g', 'mass', 0.9),
+        ('vanilla extract', 100, 'ml', 'volume', 0.95),
+        ('ground black pepper', 100, 'g', 'mass', 0.4)
     ]
     cursor.executemany(
-        "INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)",
+        "INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, density_g_ml) VALUES (?, ?, ?, ?, ?)",
         ingredients_to_seed
     )
 
@@ -92,21 +99,19 @@ def seed_db():
         ('lb', 'g', 453.592), ('kg', 'g', 1000),
         ('oz', 'g', 28.3495), ('gallon', 'ml', 3785.41),
         ('quart', 'ml', 946.353), ('pint', 'ml', 473.176),
-        ('cup', 'ml', 236.588), ('tbsp', 'ml', 14.7868),
-        ('tsp', 'ml', 4.92892)
+        ('cup', 'ml', 236.588),
+        ('tbsp', 'ml', 14.7868), ('tablespoon', 'ml', 14.7868),
+        ('tsp', 'ml', 4.92892), ('teaspoon', 'ml', 4.92892)
     ]
     cursor.executemany(
         "INSERT INTO unit_conversions (from_unit, to_unit, factor) VALUES (?, ?, ?)",
         unit_conversions_to_seed
     )
 
-    # Seed Ingredient-Specific Conversions (mass to volume)
-    # We need ingredient IDs for this
+    # Seed Ingredient-Specific Conversions (mass to volume) - This is now deprecated in favor of density
+    # We might still need it for special cases, but for the seeded data, we'll rely on density.
     ingredient_conversions_to_seed = [
-        ('flour', 'cup', 'g', 120),    # 1 cup of flour = 120g
-        ('sugar', 'cup', 'g', 200),    # 1 cup of sugar = 200g
-        ('butter', 'cup', 'g', 227),   # 1 cup of butter = 227g
-        ('milk', 'cup', 'ml', 240)     # 1 cup of milk = 240ml
+        # ('flour', 'cup', 'g', 120), # Example of what was here before
     ]
 
     for ingredient_name, from_unit, to_unit, factor in ingredient_conversions_to_seed:
