@@ -19,7 +19,7 @@
 
         <!-- Add Ingredient Section -->
         <h2>Add Ingredient</h2>
-        <form id="add-ingredient-form" hx-post="/add_ingredient" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on::after-request="this.reset()">
+        <form id="add-ingredient-form" hx-post="/add_ingredient" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="if(event.detail.requestConfig.verb === 'post') this.reset()">
             <input type="text" name="ingredient_name" placeholder="Enter ingredient name" required
                    hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
                    autocomplete="off">

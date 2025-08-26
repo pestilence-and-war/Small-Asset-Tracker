@@ -1,7 +1,7 @@
 from flask import render_template, request, make_response
 from app import app
 from app.database import get_db_connection
-from app.units import convert_to_base, needs_conversion_prompt, get_conversion_prompt_html, get_base_unit_type, get_base_unit
+from app.units import convert_to_base, needs_conversion_prompt, get_conversion_prompt_html, get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html
 
 def get_all_ingredients():
     conn = get_db_connection()
@@ -67,6 +67,14 @@ def add_ingredient():
             base_unit_type = get_base_unit_type(unit)
             if not base_unit_type:
                 raise ValueError(f"Cannot determine type for unit '{unit}'. Please use a standard unit (e.g., g, ml, oz, cup).")
+
+            # If the user enters a volume unit for a new ingredient, prompt for density.
+            if base_unit_type == 'volume':
+                conn.close()
+                response = make_response(get_new_ingredient_conversion_prompt_html(ingredient_name, quantity, unit))
+                response.headers['HX-Retarget'] = '#user-prompts'
+                response.headers['HX-Reswap'] = 'innerHTML' # Explicitly set swap style
+                return response
 
             base_unit = get_base_unit(base_unit_type)
             # For a new ingredient, we convert to its determined base unit.
@@ -163,6 +171,49 @@ def add_conversion():
     ingredients = get_all_ingredients()
     response_html = render_template('_ingredients_list.html', ingredients=ingredients)
     # This response will replace the #ingredient-list-container, thus clearing the prompt
+    return make_response(response_html)
+
+@app.route('/add_new_ingredient_with_conversion', methods=['POST'])
+def add_new_ingredient_with_conversion():
+    ingredient_name = request.form['ingredient_name'].strip().lower()
+    original_quantity = float(request.form['original_quantity'])
+    original_unit = request.form['original_unit']
+    factor = float(request.form['factor'])
+    to_unit = request.form['to_unit'] # This will be 'g'
+
+    conn = get_db_connection()
+    try:
+        # 1. Create the new ingredient, with base unit 'g' (mass)
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)',
+            (ingredient_name, 0, to_unit, 'mass') # Start with 0 quantity
+        )
+        ingredient_id = cursor.lastrowid
+
+        # 2. Save the new conversion factor
+        conn.execute(
+            "INSERT INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+            (ingredient_id, original_unit, to_unit, factor)
+        )
+
+        # 3. Convert the original quantity to the base quantity and add it
+        converted_quantity = original_quantity * factor
+        conn.execute(
+            "UPDATE ingredients SET quantity = ? WHERE id = ?",
+            (converted_quantity, ingredient_id)
+        )
+
+        conn.commit()
+    except Exception as e:
+        print(f"Error in add_new_ingredient_with_conversion: {e}")
+        # Optionally handle error
+    finally:
+        if conn: conn.close()
+
+    # Return the updated ingredient list, which also clears the prompt
+    ingredients = get_all_ingredients()
+    response_html = render_template('_ingredients_list.html', ingredients=ingredients)
     return make_response(response_html)
 
 @app.route('/start_cooking_session', methods=['POST'])

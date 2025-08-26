@@ -167,3 +167,27 @@ def get_conversion_prompt_html(ingredient_id, original_quantity, original_unit, 
         </form>
     </div>
     """
+
+def get_new_ingredient_conversion_prompt_html(ingredient_name, original_quantity, original_unit):
+    """
+    Generates HTML for a conversion prompt for a NEW ingredient.
+    """
+    # For new ingredients, we standardize on 'g' as the base unit for anything that needs a density conversion.
+    to_unit = 'g'
+
+    return f"""
+    <div id="conversion-prompt" class="conversion-prompt">
+        <h4>New Ingredient: Density Needed</h4>
+        <p>You're adding '{ingredient_name}' with a volume unit ('{original_unit}'). To store it accurately, please provide its density.</p>
+        <p>How many grams (g) are in 1 {original_unit} of {ingredient_name}?</p>
+        <form hx-post="/add_new_ingredient_with_conversion" hx-target="#ingredient-list-container" hx-swap="innerHTML">
+            <input type="hidden" name="ingredient_name" value="{ingredient_name}">
+            <input type="hidden" name="original_quantity" value="{original_quantity}">
+            <input type="hidden" name="original_unit" value="{original_unit}">
+            <input type="hidden" name="to_unit" value="{to_unit}">
+
+            1 {original_unit} = <input type="number" name="factor" step="any" required> {to_unit}
+            <button type="submit">Save & Add Ingredient</button>
+        </form>
+    </div>
+    """
