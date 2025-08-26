@@ -1,8 +1,12 @@
-<li id="ingredient-{{ ingredient.id }}">
-    <span>{{ ingredient.name }}</span>
-    <span class="ingredient-quantity">
-        <button class="quantity-btn" hx-post="/update_quantity" hx-vals='{"id": "{{ ingredient.id }}", "change": "-1"}' hx-target="#ingredient-{{ ingredient.id }}" hx-swap="outerHTML">-</button>
-        {{ ingredient.quantity | round(2) }} {{ ingredient.unit }}
-        <button class="quantity-btn" hx-post="/update_quantity" hx-vals='{"id": "{{ ingredient.id }}", "change": "1"}' hx-target="#ingredient-{{ ingredient.id }}" hx-swap="outerHTML">+</button>
-    </span>
+<li id="ingredient-{{ ingredient.id }}" class="ingredient-item">
+    <div class="ingredient-display">
+        <span>{{ ingredient.name }} - <strong>{{ '%.2f'|format(ingredient.quantity) }}</strong> {{ ingredient.base_unit }}</span>
+        {% if show_edit_buttons %}
+        <div>
+            <button hx-get="/edit_ingredient_form/{{ ingredient.id }}" hx-target="#ingredient-{{ ingredient.id }}" hx-swap="innerHTML" class="edit-btn">
+                Edit
+            </button>
+        </div>
+        {% endif %}
+    </div>
 </li>

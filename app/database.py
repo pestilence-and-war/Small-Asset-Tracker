@@ -102,12 +102,22 @@ def seed_db():
 
     # Seed Ingredient-Specific Conversions (mass to volume)
     # We need ingredient IDs for this
-    cursor.execute("SELECT id FROM ingredients WHERE name = 'flour'")
-    flour_id = cursor.fetchone()[0]
-    cursor.execute(
-        "INSERT INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
-        (flour_id, 'cup', 'g', 120) # 1 cup of flour = 120g
-    )
+    ingredient_conversions_to_seed = [
+        ('flour', 'cup', 'g', 120),    # 1 cup of flour = 120g
+        ('sugar', 'cup', 'g', 200),    # 1 cup of sugar = 200g
+        ('butter', 'cup', 'g', 227),   # 1 cup of butter = 227g
+        ('milk', 'cup', 'ml', 240)     # 1 cup of milk = 240ml
+    ]
+
+    for ingredient_name, from_unit, to_unit, factor in ingredient_conversions_to_seed:
+        cursor.execute("SELECT id FROM ingredients WHERE name = ?", (ingredient_name,))
+        result = cursor.fetchone()
+        if result:
+            ingredient_id = result[0]
+            cursor.execute(
+                "INSERT INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+                (ingredient_id, from_unit, to_unit, factor)
+            )
 
     # Seed Meals
     cursor.execute("INSERT INTO meals (name) VALUES (?)", ('pancakes',))

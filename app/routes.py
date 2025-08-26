@@ -21,6 +21,11 @@ def index():
     meals = get_all_meals()
     return render_template('index.html', ingredients=ingredients, meals=meals)
 
+@app.route('/pantry')
+def pantry():
+    ingredients = get_all_ingredients()
+    return render_template('pantry.html', ingredients=ingredients)
+
 @app.route('/add_ingredient', methods=['POST'])
 def add_ingredient():
     ingredient_name = request.form['ingredient_name'].strip().lower()
@@ -184,6 +189,7 @@ def start_cooking_session():
     """, (meal_id,)).fetchall()
 
     recipe_items = []
+    missing_conversions = []
     for item in meal_ingredients_raw:
         try:
             required_quantity_base, _, _ = convert_to_base(item['recipe_quantity'] * portion, item['recipe_unit'], item['id'])
@@ -201,10 +207,74 @@ def start_cooking_session():
         except ValueError as e:
             print(f"Could not convert {item['name']} for cooking session: {e}")
             # Handle error - maybe skip this ingredient or show an error in the UI
+            missing_conversions.append({
+                "name": item['name'],
+                "unit": item['recipe_unit'],
+                "base_unit": item['base_unit']
+            })
 
     conn.close()
 
-    return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items)
+    return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions)
+
+@app.route('/ingredient/<int:ing_id>')
+def get_ingredient(ing_id):
+    conn = get_db_connection()
+    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+    conn.close()
+    return render_template('_ingredient_item.html', ingredient=ingredient)
+
+@app.route('/edit_ingredient_form/<int:ing_id>')
+def edit_ingredient_form(ing_id):
+    conn = get_db_connection()
+    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+    conn.close()
+    return render_template('_edit_ingredient_form.html', ingredient=ingredient)
+
+@app.route('/edit_ingredient/<int:ing_id>', methods=['POST'])
+def edit_ingredient(ing_id):
+    conn = get_db_connection()
+    new_name = request.form.get('name', '').strip().lower()
+    new_quantity = request.form.get('quantity', 0)
+
+    if not new_name:
+        # Handle error: name cannot be empty
+        # For simplicity, we'll just fetch the original ingredient and return it
+        ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+        conn.close()
+        return render_template('_ingredient_item.html', ingredient=ingredient)
+
+    try:
+        new_quantity = float(new_quantity)
+        conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, new_quantity, ing_id))
+        conn.commit()
+    except ValueError:
+        # Handle error: quantity is not a valid float
+        pass # For simplicity, we do nothing
+    except Exception as e:
+        print(f"Error updating ingredient: {e}")
+        # Handle other potential DB errors
+
+    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+    conn.close()
+    return render_template('_ingredient_item.html', ingredient=ingredient)
+
+@app.route('/delete_ingredient/<int:ing_id>', methods=['DELETE'])
+def delete_ingredient(ing_id):
+    conn = get_db_connection()
+    try:
+        # First, delete references in meal_ingredients
+        conn.execute("DELETE FROM meal_ingredients WHERE ingredient_id = ?", (ing_id,))
+        # Then, delete the ingredient itself
+        conn.execute("DELETE FROM ingredients WHERE id = ?", (ing_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"Error deleting ingredient: {e}")
+        # Optionally, handle the error in the UI
+    finally:
+        conn.close()
+
+    return "" # Return an empty string as the element will be removed from the DOM
 
 @app.route('/update_pantry', methods=['POST'])
 def update_pantry():

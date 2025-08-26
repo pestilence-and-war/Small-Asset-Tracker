@@ -8,9 +8,15 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body>
-    <h1>Pantry Manager</h1>
-
     <div class="container">
+        <header>
+            <h1>Pantry Manager</h1>
+            <nav>
+                <a href="/" class="active">Home</a>
+                <a href="/pantry">Edit Pantry</a>
+            </nav>
+        </header>
+
         <!-- Cook a Meal Section -->
         <h2>Cook a Meal</h2>
         <form action="/start_cooking_session" method="POST" target="_blank">
@@ -26,28 +32,13 @@
 
         <hr>
 
-        <!-- Add Ingredient Section -->
-        <h2>Add Ingredient</h2>
-        <form hx-post="/add_ingredient" hx-target="#user-prompts" hx-swap="innerHTML" hx-on::after-request="document.querySelector('#add-ingredient-form').reset(); document.querySelector('#search-results').innerHTML=''">
-            <input type="text" name="ingredient_name" placeholder="Enter ingredient name" required
-                   hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
-                   autocomplete="off">
-            <div id="search-results"></div>
-            <input type="number" name="quantity" placeholder="Quantity" value="1" min="0" step="any">
-            <input type="text" name="unit" placeholder="Unit (e.g., g, ml, cup, oz)">
-            <button type="submit">Add Ingredient</button>
-        </form>
-
-        <!-- Area for server-side prompts like unit conversions -->
-        <div id="user-prompts"></div>
-
-        <hr>
-
-        <!-- Pantry List -->
-        <h2>My Pantry</h2>
+        <!-- Pantry Summary -->
+        <h2>Pantry Summary</h2>
         <div id="ingredient-list-container">
-            {% include '_ingredients_list.html' %}
+            {% include '_ingredients_list.html' with {'ingredients': ingredients, 'show_edit_buttons': False} %}
         </div>
+        <a href="/pantry" class="button">Edit Pantry</a>
+
     </div>
 </body>
 </html>

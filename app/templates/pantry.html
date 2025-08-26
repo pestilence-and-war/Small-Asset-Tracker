@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantry Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Pantry Management</h1>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/pantry" class="active">Edit Pantry</a>
+            </nav>
+        </header>
+
+        <!-- Add Ingredient Section -->
+        <h2>Add Ingredient</h2>
+        <form id="add-ingredient-form" hx-post="/add_ingredient" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on::after-request="this.reset()">
+            <input type="text" name="ingredient_name" placeholder="Enter ingredient name" required
+                   hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
+                   autocomplete="off">
+            <div id="search-results"></div>
+            <input type="number" name="quantity" placeholder="Quantity" value="1" min="0" step="any">
+            <input type="text" name="unit" placeholder="Unit (e.g., g, ml, cup, oz)">
+            <button type="submit">Add Ingredient</button>
+        </form>
+
+        <!-- Area for server-side prompts like unit conversions -->
+        <div id="user-prompts"></div>
+
+        <hr>
+
+        <!-- Pantry List -->
+        <h2>My Pantry</h2>
+        <div id="ingredient-list-container">
+            {% include '_ingredients_list.html' with {'ingredients': ingredients, 'show_edit_buttons': True} %}
+        </div>
+    </div>
+</body>
+</html>
