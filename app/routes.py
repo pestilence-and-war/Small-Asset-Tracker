@@ -94,88 +94,65 @@ def add_ingredient():
     unit = request.form.get('unit', '').strip().lower()
 
     if not ingredient_name or not unit:
-        ingredients = get_all_ingredients()
-        return render_template('_ingredients_list.html', ingredients=ingredients)
+        return render_template('_ingredients_list.html', ingredients=get_all_ingredients())
 
     conn = get_db_connection()
+    try:
+        # --- Fuzzy Matching Start ---
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
 
-    # --- Fuzzy Matching Start ---
-    all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
-    all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+        ingredient = None
+        if all_ingredients_map:
+            best_match = process.extractOne(ingredient_name, all_ingredients_map.keys())
+            if best_match and best_match[1] > 85:
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[best_match[0]],)).fetchone()
+            else:
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
+        # --- Fuzzy Matching End ---
 
-    ingredient = None
-    if all_ingredients_map: # Only search if there are ingredients
-        # extractOne returns (match, score)
-        best_match = process.extractOne(ingredient_name, all_ingredients_map.keys())
-
-        # If a good match is found (e.g., score > 85), use that ingredient
-        if best_match and best_match[1] > 85:
-            match_name = best_match[0]
-            ingredient_id = all_ingredients_map[match_name]
-            ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-        else:
-            # No good fuzzy match, check for an exact match before creating a new one
-            ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
-    # If no ingredients exist yet, `ingredient` remains None and we proceed to create one.
-    # --- Fuzzy Matching End ---
-
-    # This will be our final response, can be overridden by a prompt
-    response_html = ""
-
-    if ingredient:
-        # Ingredient exists (either by exact or fuzzy match)
-        try:
-            if needs_conversion_prompt(unit, ingredient['id']):
-                conn.close()
-                # Return a prompt instead of the ingredient list
+        if ingredient:
+            # Ingredient exists
+            if needs_conversion_prompt(unit, ingredient['id'], conn=conn):
+                # This path doesn't modify the DB, so we can just return the prompt.
+                # The form in the prompt will post to a different route.
                 return make_response(get_conversion_prompt_html(ingredient['id'], quantity, unit, 0))
 
-            converted_quantity, _, _ = convert_to_base(quantity, unit, ingredient['id'])
+            converted_quantity, _, _ = convert_to_base(quantity, unit, ingredient['id'], conn=conn)
             conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (converted_quantity, ingredient['id']))
-            conn.commit()
-        except ValueError as e:
-            print(f"Conversion error for existing ingredient: {e}")
-            # Optionally, return an error message to the user here
-        finally:
-            if conn: conn.close()
-    else:
-        # New ingredient
-        try:
+        else:
+            # New ingredient
             base_unit_type = get_base_unit_type(unit)
             if not base_unit_type:
-                raise ValueError(f"Cannot determine type for unit '{unit}'. Please use a standard unit (e.g., g, ml, oz, cup).")
+                raise ValueError(f"Cannot determine type for unit '{unit}'.")
 
-            # If the user adds a new ingredient that has a mass or volume, we need its density
-            # to allow for future conversions. We will standardize on 'g' as the base unit.
             if base_unit_type in ['mass', 'volume']:
-                conn.close()
-                # We pass the original unit to the prompt function to make it more informative.
+                # This path also doesn't modify the DB. It returns a prompt to another route.
                 response = make_response(get_new_ingredient_conversion_prompt_html(ingredient_name, quantity, unit))
                 response.headers['HX-Retarget'] = '#user-prompts'
                 response.headers['HX-Reswap'] = 'innerHTML'
                 return response
 
-            # This logic will now only apply to 'count' type ingredients, as mass/volume types
-            # are handled by the density prompt and its corresponding route.
             base_unit = get_base_unit(base_unit_type)
-            converted_quantity, _, _ = convert_to_base(quantity, unit) # This will just be the quantity itself for 'count'
-
-            cursor = conn.cursor()
-            cursor.execute(
+            converted_quantity, _, _ = convert_to_base(quantity, unit, conn=conn)
+            conn.execute(
                 'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)',
                 (ingredient_name, converted_quantity, base_unit, base_unit_type)
             )
-            conn.commit()
-        except ValueError as e:
-            print(f"Error adding new ingredient: {e}")
-            # Optionally, return an error message to the user
-        finally:
-            if conn: conn.close()
+
+        conn.commit()
+
+    except (ValueError, TypeError) as e:
+        print(f"Error in add_ingredient: {e}")
+        # On error, rollback any changes and don't save.
+        if conn: conn.rollback()
+        # We can also return an error message to the user here.
+        # For now, just returning the latest ingredient list.
+    finally:
+        if conn: conn.close()
 
     ingredients = get_all_ingredients()
-    response_html = render_template('_ingredients_list.html', ingredients=ingredients)
-    # This ensures the prompt area is cleared on successful add
-    return make_response(response_html)
+    return render_template('_ingredients_list.html', ingredients=ingredients)
 
 @app.route('/search')
 def search():
@@ -205,29 +182,32 @@ def search():
 @app.route('/update_quantity', methods=['POST'])
 def update_quantity():
     ingredient_id = request.form['id']
-    change = float(request.form['change'])
     view_name = request.form.get('view_name', 'pantry')
 
     conn = get_db_connection()
-    # We first need to get the ingredient to know its base unit for the conversion.
-    ingredient_raw = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-    if not ingredient_raw:
-        conn.close()
-        return "Ingredient not found", 404
+    try:
+        with conn:
+            change = float(request.form['change'])
+            display_unit = request.form['unit']
 
-    # The 'change' is in the current display unit. We need to convert it to the base unit.
-    display_unit = request.form['unit']
-    change_in_base_unit, _, _ = convert_to_base(change, display_unit, ingredient_id)
+            # The 'change' is in the current display unit. We need to convert it to the base unit.
+            change_in_base_unit, _, _ = convert_to_base(change, display_unit, ingredient_id, conn=conn)
 
-    conn.execute(
-        "UPDATE ingredients SET quantity = quantity + ? WHERE id = ?",
-        (change_in_base_unit, ingredient_id)
-    )
-    conn.commit()
-    conn.close()
+            conn.execute(
+                "UPDATE ingredients SET quantity = quantity + ? WHERE id = ?",
+                (change_in_base_unit, ingredient_id)
+            )
+    except (ValueError, TypeError) as e:
+        print(f"Error in update_quantity: {e}")
+        # Rollback is handled by the 'with' statement.
+    finally:
+        if conn: conn.close()
 
     # Fetch the updated ingredient to send back, with the correct display unit
     ingredient = get_ingredient_by_id(ingredient_id, view_name)
+    if not ingredient:
+        return "Ingredient not found", 404
+
     return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
 
 @app.route('/add_conversion', methods=['POST'])
@@ -236,43 +216,34 @@ def add_conversion():
     from_unit = request.form['from_unit']
     to_unit = request.form['to_unit']
     factor = float(request.form['factor'])
-
-    # The original quantity and unit the user was trying to add
     original_quantity = float(request.form['quantity_to_add'])
     original_unit = request.form['unit_to_add']
 
     conn = get_db_connection()
     try:
-        # Save the new conversion factor
-        conn.execute(
-            "INSERT INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
-            (ingredient_id, from_unit, to_unit, factor)
-        )
-        conn.commit()
+        with conn:
+            # Save the new conversion factor
+            conn.execute(
+                "INSERT INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+                (ingredient_id, from_unit, to_unit, factor)
+            )
 
-        # Now that the conversion is saved, try to add the original quantity again
-        # We need a new connection for convert_to_base to see the new conversion
-        conn.close()
-        conn = get_db_connection()
-
-        converted_quantity, _, _ = convert_to_base(original_quantity, original_unit, ingredient_id)
-        conn.execute(
-            "UPDATE ingredients SET quantity = quantity + ? WHERE id = ?",
-            (converted_quantity, ingredient_id)
-        )
-        conn.commit()
-
+            # Now that the conversion is saved, add the original quantity again.
+            # No new connection is needed as we are in the same transaction.
+            converted_quantity, _, _ = convert_to_base(original_quantity, original_unit, ingredient_id, conn=conn)
+            conn.execute(
+                "UPDATE ingredients SET quantity = quantity + ? WHERE id = ?",
+                (converted_quantity, ingredient_id)
+            )
     except Exception as e:
         print(f"Error in add_conversion: {e}")
-        # Handle error, maybe return a message
+        # Rollback is handled by 'with conn:'.
     finally:
         if conn: conn.close()
 
     # Return the updated ingredient list
     ingredients = get_all_ingredients()
-    response_html = render_template('_ingredients_list.html', ingredients=ingredients)
-    # This response will replace the #ingredient-list-container, thus clearing the prompt
-    return make_response(response_html)
+    return render_template('_ingredients_list.html', ingredients=ingredients)
 
 @app.route('/add_new_ingredient_with_density', methods=['POST'])
 def add_new_ingredient_with_density():
@@ -283,43 +254,39 @@ def add_new_ingredient_with_density():
 
     conn = get_db_connection()
     try:
-        # 1. Create the new ingredient.
-        # When adding with a volume unit, we standardize the base unit to 'g'.
-        base_unit = 'g'
-        base_unit_type = 'mass'
+        with conn: # Use 'with' statement for automatic transaction handling (commit/rollback)
+            # 1. Create the new ingredient.
+            base_unit = 'g'
+            base_unit_type = 'mass'
 
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, density_g_ml) VALUES (?, ?, ?, ?, ?)',
-            (ingredient_name, 0, base_unit, base_unit_type, density_g_ml)
-        )
-        ingredient_id = cursor.lastrowid
-        conn.commit() # Commit the insert to make the ingredient available for conversion
+            cursor = conn.cursor()
+            cursor.execute(
+                'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, density_g_ml) VALUES (?, ?, ?, ?, ?)',
+                (ingredient_name, 0, base_unit, base_unit_type, density_g_ml)
+            )
+            ingredient_id = cursor.lastrowid
 
-        # 2. Convert the original quantity to the base quantity using the new density.
-        # We need a new connection/cursor for convert_to_base to see the new ingredient.
-        conn.close()
-        conn = get_db_connection()
+            # 2. Convert the original quantity to the base quantity.
+            # The new ingredient is visible within the same transaction, so no need for a new connection.
+            converted_quantity, _, _ = convert_to_base(original_quantity, original_unit, ingredient_id, conn=conn)
 
-        converted_quantity, _, _ = convert_to_base(original_quantity, original_unit, ingredient_id)
-
-        # 3. Update the ingredient with the correct converted quantity.
-        conn.execute(
-            "UPDATE ingredients SET quantity = ? WHERE id = ?",
-            (converted_quantity, ingredient_id)
-        )
-        conn.commit()
+            # 3. Update the ingredient with the correct converted quantity.
+            conn.execute(
+                "UPDATE ingredients SET quantity = ? WHERE id = ?",
+                (converted_quantity, ingredient_id)
+            )
+            # The 'with' block will commit here if no exceptions were raised.
 
     except Exception as e:
         print(f"Error in add_new_ingredient_with_density: {e}")
-        # Optionally handle error, e.g., by returning an error message to the user
+        # The 'with' block will roll back on exception.
+        # Optionally handle error, e.g., by returning an error message to the user.
     finally:
         if conn: conn.close()
 
-    # Return the updated ingredient list, which also clears the prompt
+    # Return the updated ingredient list, which also clears the prompt.
     ingredients = get_all_ingredients()
-    response_html = render_template('_ingredients_list.html', ingredients=ingredients)
-    return make_response(response_html)
+    return render_template('_ingredients_list.html', ingredients=ingredients)
 
 @app.route('/start_cooking_session', methods=['POST'])
 def start_cooking_session():
@@ -495,72 +462,59 @@ def edit_ingredient(ing_id):
 
     conn = get_db_connection()
     try:
-        current_ingredient_raw = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-        if not current_ingredient_raw:
-            conn.close()
-            return "Ingredient not found", 404
+        with conn:
+            current_ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+            if not current_ingredient:
+                return "Ingredient not found", 404
 
-        current_ingredient = dict(current_ingredient_raw)
-        current_base_unit_type = current_ingredient['base_unit_type']
+            current_base_unit_type = current_ingredient['base_unit_type']
+            new_quantity = parse_quantity(new_quantity_str)
+            new_unit_type = get_base_unit_type(new_unit)
 
-        new_quantity = parse_quantity(new_quantity_str)
-        new_unit_type = get_base_unit_type(new_unit)
+            if not new_unit_type:
+                raise ValueError(f"Invalid unit provided: {new_unit}")
 
-        if not new_unit_type:
-            raise ValueError(f"Invalid unit provided: {new_unit}")
+            # Scenario 1: Unit type isn't changing significantly (or changing to 'count')
+            if new_unit_type == current_base_unit_type or new_unit_type == 'count':
+                if new_unit_type != current_base_unit_type:
+                    quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, conn=conn)
+                    conn.execute(
+                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+                    )
+                else:
+                    quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
+                    conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, quantity_in_base, ing_id))
 
-        # Scenario 1: Unit type is not changing, or we are changing TO a count type (which doesn't need density)
-        if new_unit_type == current_base_unit_type or new_unit_type == 'count':
-            if new_unit_type != current_base_unit_type:
-                 # Type is changing (e.g. g -> unit), so we need to change the base unit and type
-                 quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit)
-                 conn.execute(
-                    "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
-                    (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
-                )
-            else:
-                # Type is the same, just update name and quantity
-                quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id)
-                conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, quantity_in_base, ing_id))
-
-            # Always update the preferred display unit
-            conn.execute("""
-                INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
-                ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
-            """, (ing_id, view_name, new_unit))
-            conn.commit()
-
-        # Scenario 2: Unit type is changing to mass/volume and might need density
-        else: # new_unit_type is 'mass' or 'volume'
-            density_missing = not current_ingredient.get('density_g_ml')
-
-            if density_missing:
-                # We need to prompt for density. The template will be created in the next step.
-                return render_template(
-                    '_update_density_prompt.html',
-                    ingredient=current_ingredient,
-                    new_name=new_name,
-                    new_quantity=new_quantity,
-                    new_unit=new_unit,
-                    view_name=view_name
-                )
-            else: # Density exists, so we can change between mass and volume
-                # We can use convert_to_base with the ingredient_id because a density exists
-                quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id)
-                conn.execute(
-                    "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
-                    (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
-                )
                 conn.execute("""
                     INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
                     ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
                 """, (ing_id, view_name, new_unit))
-                conn.commit()
+
+            # Scenario 2: Unit type is changing between mass/volume and density is required
+            else:
+                if not current_ingredient.get('density_g_ml'):
+                    # The 'with conn' block will close the connection, so we can safely return a prompt here.
+                    # No changes have been committed.
+                    return render_template(
+                        '_update_density_prompt.html',
+                        ingredient=dict(current_ingredient), new_name=new_name,
+                        new_quantity=new_quantity, new_unit=new_unit, view_name=view_name
+                    )
+                else: # Density exists
+                    quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
+                    conn.execute(
+                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+                    )
+                    conn.execute("""
+                        INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
+                        ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+                    """, (ing_id, view_name, new_unit))
 
     except (ValueError, TypeError) as e:
         print(f"Error in edit_ingredient: {e}")
-        ingredient = get_ingredient_by_id(ing_id, view_name)
-        return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
+        # Rollback is handled by the 'with' statement.
     finally:
         if conn: conn.close()
 
@@ -578,57 +532,44 @@ def update_ingredient_details(ing_id):
     if not all([new_name, new_unit, density_g_ml_str]):
         return "Error: Missing required fields.", 400
 
-    conn = None
+    conn = get_db_connection()
     try:
-        new_quantity = parse_quantity(new_quantity_str)
-        density_g_ml = float(density_g_ml_str)
-        new_unit_type = get_base_unit_type(new_unit)
-        new_base_unit = get_base_unit(new_unit_type)
+        with conn:
+            new_quantity = parse_quantity(new_quantity_str)
+            density_g_ml = float(density_g_ml_str)
+            new_unit_type = get_base_unit_type(new_unit)
+            new_base_unit = get_base_unit(new_unit_type)
 
-        conn = get_db_connection()
-        current_ingredient = conn.execute("SELECT base_unit_type FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-        current_base_unit_type = current_ingredient['base_unit_type'] if current_ingredient else None
+            current_ingredient = conn.execute("SELECT base_unit_type FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+            current_base_unit_type = current_ingredient['base_unit_type'] if current_ingredient else None
 
-        # Scenario: Changing a 'count' ingredient to a 'mass' or 'volume' one.
-        if current_base_unit_type == 'count' and new_unit_type in ['mass', 'volume']:
-            # Fundamentally changing the ingredient's type.
-            # Convert the quantity to the new base unit ('g' or 'ml') without
-            # referencing the ingredient's old 'unit' base.
-            quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit) # No ingredient_id
+            # Scenario: Changing a 'count' ingredient to a 'mass' or 'volume' one.
+            if current_base_unit_type == 'count' and new_unit_type in ['mass', 'volume']:
+                quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, conn=conn)
+                conn.execute(
+                    """UPDATE ingredients
+                       SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, density_g_ml = ?
+                       WHERE id = ?""",
+                    (new_name, quantity_in_base, new_base_unit, new_unit_type, density_g_ml, ing_id)
+                )
+            else:
+                # Standard flow: The ingredient is already a mass/volume type.
+                conn.execute("UPDATE ingredients SET density_g_ml = ? WHERE id = ?", (density_g_ml, ing_id))
+                quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
+                conn.execute(
+                    "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                    (new_name, quantity_in_base, new_base_unit, new_unit_type, ing_id)
+                )
 
-            conn.execute(
-                """UPDATE ingredients
-                   SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, density_g_ml = ?
-                   WHERE id = ?""",
-                (new_name, quantity_in_base, new_base_unit, new_unit_type, density_g_ml, ing_id)
-            )
-        else:
-            # Standard flow: The ingredient is already a mass/volume type.
-            # 1. Update density first so it's available for the conversion.
-            conn.execute("UPDATE ingredients SET density_g_ml = ? WHERE id = ?", (density_g_ml, ing_id))
-            conn.commit() # Commit this change so convert_to_base can see it.
-
-            # 2. Convert quantity using the new density.
-            # The `ing_id` is crucial here for mass <-> volume conversions.
-            quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id)
-
-            # 3. Update the rest of the details.
-            conn.execute(
-                "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
-                (new_name, quantity_in_base, new_base_unit, new_unit_type, ing_id)
-            )
-
-        # Always update the preferred display unit for the current view
-        conn.execute("""
-            INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
-            ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
-        """, (ing_id, view_name, new_unit))
-        conn.commit()
+            # Always update the preferred display unit for the current view
+            conn.execute("""
+                INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
+                ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+            """, (ing_id, view_name, new_unit))
 
     except (ValueError, TypeError) as e:
         print(f"Error in update_ingredient_details: {e}")
-        # Best effort to not break the UI. A more robust solution would provide an error message.
-        if conn: conn.rollback()
+        # Rollback is handled by 'with conn:'.
     finally:
         if conn: conn.close()
 
