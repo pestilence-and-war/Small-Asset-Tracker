@@ -1,11 +1,28 @@
 <h4>Ingredients for {{ meal.name }}</h4>
 <ul class="meal-ingredients">
     {% for item in meal_ingredients %}
-    <li>
-        <span>{{ item.name }} - {{ item.pretty_quantity }}</span>
-        <button hx-delete="/remove_ingredient_from_meal/{{ meal.id }}/{{ item.meal_ingredient_id }}" hx-target="closest li" hx-swap="outerHTML" class="button-danger button-small">
-            Remove
-        </button>
+    <li class="ingredient-item">
+        <div class="ingredient-display">
+            <span>{{ item.name }} - <strong>{{ '%.2f'|format(item.display_quantity) }}</strong></span>
+
+            <form class="unit-selector-form">
+                <select name="unit"
+                        hx-post="/update_recipe_ingredient_unit/{{ meal.id }}/{{ item.ingredient_id }}"
+                        hx-trigger="change"
+                        hx-target="#meal-ingredients-list"
+                        hx-swap="innerHTML">
+                    {% for unit in item.compatible_units %}
+                    <option value="{{ unit }}" {% if unit == item.display_unit %}selected{% endif %}>
+                        {{ unit }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <button hx-delete="/remove_ingredient_from_meal/{{ meal.id }}/{{ item.meal_ingredient_id }}" hx-target="closest li" hx-swap="outerHTML" class="button-danger button-small">
+                Remove
+            </button>
+        </div>
     </li>
     {% else %}
     <li>No ingredients in this recipe yet.</li>
