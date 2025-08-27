@@ -1,0 +1,175 @@
+<!-- The Modal -->
+<div id="unit-converter-modal" class="modal" style="display:none;">
+  <!-- Modal content -->
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="close-modal" onclick="closeModal()">&times;</span>
+      <h2>Unit Converter</h2>
+    </div>
+    <div class="modal-body">
+      <!-- Tab links -->
+      <div class="tab">
+        <button class="tablinks active" onclick="openTab(event, 'Converter')">Converter</button>
+        <button class="tablinks" onclick="openTab(event, 'Density')">Density Calculator</button>
+      </div>
+
+      <!-- Tab content -->
+      <div id="Converter" class="tabcontent" style="display:block;">
+        <h3>General Unit Converter</h3>
+        <p>Convert between any two units for an ingredient.</p>
+        <form id="general-converter-form"
+              hx-post="/calculate_conversion"
+              hx-target="#converter-result-container"
+              hx-swap="innerHTML">
+          <div class="form-grid">
+            <div class="form-group">
+                <label for="converter-ingredient">Ingredient</label>
+                <input id="converter-ingredient" type="search" name="ingredient_name" placeholder="e.g., flour"
+                       hx-post="/search_for_converter" hx-trigger="keyup changed delay:500ms"
+                       hx-target="#converter-ingredient-search-results" hx-swap="innerHTML">
+                <div id="converter-ingredient-search-results"></div>
+                <input type="hidden" name="ingredient_id" id="converter-ingredient-id">
+            </div>
+            <div class="form-group">
+              <label for="from-qty">From</label>
+              <input type="number" id="from-qty" name="from_quantity" step="any" required>
+            </div>
+            <div class="form-group">
+              <label for="from-unit">Unit</label>
+              <select id="from-unit" name="from_unit" required>
+                <optgroup label="Mass">
+                  <option value="g">Grams (g)</option>
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="lb">Pounds (lb)</option>
+                  <option value="oz">Ounces (oz)</option>
+                </optgroup>
+                <optgroup label="Volume">
+                  <option value="ml">Milliliters (ml)</option>
+                  <option value="l">Liters (l)</option>
+                  <option value="cc">Cubic cm (cc)</option>
+                  <option value="cup">Cups</option>
+                  <option value="tbsp">Tablespoons (tbsp)</option>
+                  <option value="tsp">Teaspoons (tsp)</option>
+                  <option value="gallon">Gallons</option>
+                  <option value="quart">Quarts</option>
+                  <option value="pint">Pints</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="to-unit">To</label>
+              <select id="to-unit" name="to_unit" required>
+                <optgroup label="Volume">
+                  <option value="cup">Cups</option>
+                  <option value="tbsp">Tablespoons (tbsp)</option>
+                  <option value="tsp">Teaspoons (tsp)</option>
+                  <option value="ml">Milliliters (ml)</option>
+                  <option value="l">Liters (l)</option>
+                  <option value="cc">Cubic cm (cc)</option>
+                  <option value="gallon">Gallons</option>
+                  <option value="quart">Quarts</option>
+                  <option value="pint">Pints</option>
+                </optgroup>
+                <optgroup label="Mass">
+                  <option value="g">Grams (g)</option>
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="lb">Pounds (lb)</option>
+                  <option value="oz">Ounces (oz)</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+          <button type="submit">Convert</button>
+        </form>
+        <div id="converter-result-container" class="result-container">
+          <!-- Result will be loaded here -->
+        </div>
+      </div>
+
+      <div id="Density" class="tabcontent">
+        <h3>Density Calculator</h3>
+        <p>Use this if you know a volume-to-mass relationship (e.g., "1 cup of flour is 120g").</p>
+        <form id="density-calculator-form"
+              hx-post="/calculate_density"
+              hx-target="#density-result-container"
+              hx-swap="innerHTML">
+          <div class="form-grid">
+            <div class="form-group">
+              <input type="number" name="vol_qty" value="1" step="any" required>
+              <select name="vol_unit" required>
+                  <option value="cup">Cup</option>
+                  <option value="tbsp">Tablespoon</option>
+                  <option value="tsp">Teaspoon</option>
+                  <option value="ml">Milliliter</option>
+                  <option value="l">Liter</option>
+              </select>
+            </div>
+            <div class="form-group density-equals">
+              <span>=</span>
+            </div>
+            <div class="form-group">
+              <input type="number" name="mass_qty" placeholder="e.g., 120" step="any" required>
+              <select name="mass_unit" required>
+                  <option value="g">Grams (g)</option>
+                  <option value="oz">Ounces (oz)</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit">Calculate Density</button>
+        </form>
+        <div id="density-result-container" class="result-container">
+          <!-- Result will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal() {
+  document.getElementById('unit-converter-modal').style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('unit-converter-modal').style.display = 'none';
+}
+
+// Close the modal if the user clicks outside of the modal content
+window.onclick = function(event) {
+  const modal = document.getElementById('unit-converter-modal');
+  if (event.target == modal) {
+    modal.style.display = "none";
+  }
+}
+
+function openTab(evt, tabName) {
+  let i, tabcontent, tablinks;
+  tabcontent = document.getElementsByClassName("tabcontent");
+  for (i = 0; i < tabcontent.length; i++) {
+    tabcontent[i].style.display = "none";
+  }
+  tablinks = document.getElementsByClassName("tablinks");
+  for (i = 0; i < tablinks.length; i++) {
+    tablinks[i].className = tablinks[i].className.replace(" active", "");
+  }
+  document.getElementById(tabName).style.display = "block";
+  evt.currentTarget.className += " active";
+}
+
+function selectConverterIngredient(ingredientId, ingredientName) {
+    document.getElementById('converter-ingredient-id').value = ingredientId;
+    document.getElementById('converter-ingredient').value = ingredientName;
+    // Clear the search results
+    document.getElementById('converter-ingredient-search-results').innerHTML = "";
+}
+
+function useDensity(density) {
+    const densityInput = document.querySelector('#density');
+    if (densityInput) {
+        densityInput.value = density;
+        closeModal();
+    } else {
+        alert('Could not find the density input field. Please make sure you have triggered the "New Ingredient" form first.');
+    }
+}
+</script>

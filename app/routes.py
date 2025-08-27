@@ -1,7 +1,17 @@
-from flask import render_template, request, make_response
+from flask import render_template, request, make_response, jsonify
 from app import app
 from app.database import get_db_connection
-from app.units import convert_to_base, needs_conversion_prompt, get_conversion_prompt_html, get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html
+from app.units import (
+    convert_to_base, needs_conversion_prompt, get_conversion_prompt_html,
+    get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
+    convert_units, format_fraction, convert_from_base
+)
+
+def get_all_units():
+    # These are hardcoded for consistency in the UI
+    mass_units = ['g', 'kg', 'lb', 'oz']
+    volume_units = ['ml', 'l', 'cc', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint']
+    return mass_units, volume_units
 
 def get_all_ingredients():
     conn = get_db_connection()
@@ -334,17 +344,127 @@ def delete_ingredient(ing_id):
 
     return "" # Return an empty string as the element will be removed from the DOM
 
+@app.route('/search_for_converter', methods=['POST'])
+def search_for_converter():
+    query = request.form.get('ingredient_name', '').strip().lower()
+    conn = get_db_connection()
+    if query:
+        ingredients = conn.execute(
+            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
+            (query + '%',)
+        ).fetchall()
+    else:
+        ingredients = []
+    conn.close()
+    return render_template('_search_results_for_converter.html', ingredients=ingredients)
+
+@app.route('/calculate_conversion', methods=['POST'])
+def calculate_conversion():
+    try:
+        from_quantity = float(request.form['from_quantity'])
+        from_unit = request.form['from_unit']
+        to_unit = request.form['to_unit']
+        ingredient_id = request.form.get('ingredient_id')
+
+        if not ingredient_id:
+            return "<p class='error'>Please select an ingredient first.</p>"
+
+        result = convert_units(from_quantity, from_unit, to_unit, int(ingredient_id))
+        # Use format_fraction for a nicer display if the result is a number
+        formatted_result = format_fraction(result)
+
+        return f"<p>{from_quantity} {from_unit} is approximately <strong>{formatted_result} {to_unit}</strong></p>"
+    except ValueError as e:
+        return f"<p class='error'>Error: {e}</p>"
+    except Exception as e:
+        return f"<p class='error'>An unexpected error occurred: {e}</p>"
+
+@app.route('/calculate_density', methods=['POST'])
+def calculate_density():
+    try:
+        vol_qty = float(request.form['vol_qty'])
+        vol_unit = request.form['vol_unit']
+        mass_qty = float(request.form['mass_qty'])
+        mass_unit = request.form['mass_unit']
+
+        # To calculate density in g/ml, we need to convert both quantities to g and ml
+        # We can use our conversion functions, but we don't have an ingredient context.
+        # So we'll do it manually based on the unit_conversions table.
+        conn = get_db_connection()
+
+        # Convert volume to ml
+        vol_in_ml = vol_qty
+        if vol_unit != 'ml':
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'ml'", (vol_unit,)).fetchone()
+            if not res:
+                conn.close()
+                raise ValueError(f"No conversion factor for {vol_unit} to ml")
+            vol_in_ml = vol_qty * res['factor']
+
+        # Convert mass to g
+        mass_in_g = mass_qty
+        if mass_unit != 'g':
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'g'", (mass_unit,)).fetchone()
+            if not res:
+                conn.close()
+                raise ValueError(f"No conversion factor for {mass_unit} to g")
+            mass_in_g = mass_qty * res['factor']
+
+        conn.close()
+
+        if vol_in_ml == 0:
+            raise ValueError("Volume cannot be zero.")
+
+        density = mass_in_g / vol_in_ml
+
+        return f"""
+            <p>Calculated Density: <strong>{density:.4f} g/ml</strong></p>
+            <button type="button" class="button-secondary" onclick="useDensity({density:.4f})">Use this density</button>
+        """
+    except ValueError as e:
+        return f"<p class='error'>Error: {e}</p>"
+    except Exception as e:
+        return f"<p class='error'>An unexpected error occurred: {e}</p>"
+
 def get_meal_ingredients(meal_id):
     conn = get_db_connection()
-    meal_ingredients = conn.execute("""
-        SELECT i.name, mi.quantity, mi.unit, mi.id as meal_ingredient_id
+    # We need more info from the ingredients table for conversion
+    meal_ingredients_raw = conn.execute("""
+        SELECT
+            i.id as ingredient_id,
+            i.name,
+            i.base_unit,
+            i.base_unit_type,
+            i.density_g_ml,
+            mi.quantity,
+            mi.unit,
+            mi.id as meal_ingredient_id
         FROM meal_ingredients mi
         JOIN ingredients i ON mi.ingredient_id = i.id
         WHERE mi.meal_id = ?
         ORDER BY i.name
     """, (meal_id,)).fetchall()
+
+    # Process the ingredients to add a "pretty" quantity
+    processed_ingredients = []
+    for item in meal_ingredients_raw:
+        item_dict = dict(item)
+        try:
+            # First, convert the recipe quantity (e.g., 1.5 cups) to the base unit (e.g., 180g)
+            base_quantity, base_unit, _ = convert_to_base(item['quantity'], item['unit'], item['ingredient_id'])
+            # Now, convert that base quantity into a nice format (e.g., "1 1/2 cups")
+            # We pass the original density to handle mass-to-volume conversions
+            pretty_quantity = convert_from_base(base_quantity, base_unit, item['density_g_ml'])
+            item_dict['pretty_quantity'] = pretty_quantity
+        except ValueError as e:
+            print(f"Could not create pretty quantity for {item['name']}: {e}")
+            # Fallback to the original quantity and unit
+            item_dict['pretty_quantity'] = f"{format_fraction(item['quantity'])} {item['unit']}"
+
+        processed_ingredients.append(item_dict)
+
     conn.close()
-    return meal_ingredients
+    return processed_ingredients
 
 @app.route('/recipe/<int:meal_id>')
 def recipe_editor(meal_id):
