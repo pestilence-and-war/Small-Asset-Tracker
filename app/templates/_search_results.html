@@ -1,0 +1,6 @@
+{% for ingredient in ingredients %}
+    <div class="search-result-item"
+         hx-click="document.querySelector('input[name=ingredient_name]').value = '{{ ingredient.name }}'; document.querySelector('#search-results').innerHTML = ''">
+        {{ ingredient.name }}
+    </div>
+{% endfor %}

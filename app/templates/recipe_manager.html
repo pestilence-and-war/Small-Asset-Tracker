@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Recipe Manager</h1>
+
+        <!-- Add New Meal Form -->
+        <div id="add-meal-container">
+            <h2>Add New Meal</h2>
+            <form hx-post="/add_meal" hx-target="#meals-list-container" hx-swap="innerHTML">
+                <input type="text" name="meal_name" placeholder="New meal name..." required>
+                <button type="submit" class="button-primary">Add Meal</button>
+            </form>
+        </div>
+
+        <hr>
+
+        <!-- List of Meals -->
+        <div id="meals-list-container">
+            {% include '_meals_list.html' %}
+        </div>
+
+        <div id="user-prompts"></div>
+
+        <p><a href="/" class="button">Back to Main Page</a></p>
+    </div>
+</body>
+</html>

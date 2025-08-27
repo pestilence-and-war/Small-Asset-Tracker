@@ -1,0 +1,5 @@
+{% for ingredient in ingredients %}
+    <div class="search-result-item" onclick="selectConverterIngredient('{{ ingredient.id }}', '{{ ingredient.name }}')">
+        {{ ingredient.name }}
+    </div>
+{% endfor %}

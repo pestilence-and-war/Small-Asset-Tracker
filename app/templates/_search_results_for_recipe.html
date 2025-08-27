@@ -1,0 +1,7 @@
+<ul>
+    {% for ingredient in ingredients %}
+        <li hx-post="/select_ingredient" hx-vals='{"ingredient_name": "{{ ingredient.name }}", "meal_id": "{{ meal_id }}"}' hx-target="#ingredient-search-input" hx-swap="outerHTML">
+            {{ ingredient.name }}
+        </li>
+    {% endfor %}
+</ul>

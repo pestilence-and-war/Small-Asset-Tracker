@@ -1,0 +1,13 @@
+<h4>Ingredients for {{ meal.name }}</h4>
+<ul class="meal-ingredients">
+    {% for item in meal_ingredients %}
+    <li>
+        <span>{{ item.name }} - {{ item.pretty_quantity }}</span>
+        <button hx-delete="/remove_ingredient_from_meal/{{ meal.id }}/{{ item.meal_ingredient_id }}" hx-target="closest li" hx-swap="outerHTML" class="button-danger button-small">
+            Remove
+        </button>
+    </li>
+    {% else %}
+    <li>No ingredients in this recipe yet.</li>
+    {% endfor %}
+</ul>
