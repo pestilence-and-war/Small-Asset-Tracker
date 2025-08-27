@@ -3,7 +3,7 @@
     {% for item in meal_ingredients %}
     <li class="ingredient-item">
         <div class="ingredient-display">
-            <span>{{ item.name }} - <strong>{{ '%.2f'|format(item.display_quantity) }}</strong></span>
+            <span>{{ item.name }} - <strong>{{ item.display_quantity | format_fraction }}</strong></span>
 
             <form class="unit-selector-form">
                 <select name="unit"

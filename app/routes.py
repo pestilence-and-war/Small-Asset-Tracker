@@ -334,28 +334,43 @@ def start_cooking_session():
     conn = get_db_connection()
     meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
 
-    # Get ingredients for the meal from meal_ingredients table
+    # Get ingredients for the meal, including their preferred display unit for 'cooking' view
     meal_ingredients_raw = conn.execute("""
-        SELECT i.id, i.name, i.quantity as pantry_quantity, i.base_unit, mi.quantity as recipe_quantity, mi.unit as recipe_unit
+        SELECT
+            i.id, i.name, i.quantity as pantry_quantity, i.base_unit, i.base_unit_type,
+            mi.quantity as recipe_quantity, mi.unit as recipe_unit,
+            ivu.unit as display_unit
         FROM ingredients i
         JOIN meal_ingredients mi ON i.id = mi.ingredient_id
+        LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = 'cooking'
         WHERE mi.meal_id = ?
     """, (meal_id,)).fetchall()
 
     recipe_items = []
     missing_conversions = []
-    for item in meal_ingredients_raw:
+    for item_raw in meal_ingredients_raw:
+        item = dict(item_raw)
         try:
-            required_quantity_base, _, _ = convert_to_base(item['recipe_quantity'] * portion, item['recipe_unit'], item['id'])
+            required_quantity_recipe_unit = item['recipe_quantity'] * portion
+            required_quantity_base, _, _ = convert_to_base(required_quantity_recipe_unit, item['recipe_unit'], item['id'])
+
+            # Determine the best unit for display. Priority: cooking preference > recipe unit > base unit.
+            display_unit = item['display_unit'] or item['recipe_unit'] or item['base_unit']
+
+            # Convert required quantity and pantry quantity to the display unit for the UI
+            display_quantity_required = convert_units(required_quantity_base, item['base_unit'], display_unit, item['id'])
+            display_quantity_pantry = convert_units(item['pantry_quantity'], item['base_unit'], display_unit, item['id'])
 
             recipe_items.append({
                 "ingredient": {
                     "id": item['id'],
                     "name": item['name'],
-                    "base_unit": item['base_unit']
+                    "display_unit": display_unit
                 },
-                "required_quantity": required_quantity_base,
-                "pantry_quantity": item['pantry_quantity'],
+                "display_quantity_required": display_quantity_required,
+                "display_quantity_pantry": display_quantity_pantry,
+                "required_quantity_base": required_quantity_base, # For pantry deduction
+                "pantry_quantity_base": item['pantry_quantity'], # For stock status logic
                 "in_stock": item['pantry_quantity'] >= required_quantity_base
             })
         except ValueError as e:
