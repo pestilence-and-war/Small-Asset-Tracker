@@ -580,25 +580,43 @@ def update_ingredient_details(ing_id):
     try:
         new_quantity = parse_quantity(new_quantity_str)
         density_g_ml = float(density_g_ml_str)
-
-        # 1. Update density and commit so it's visible to other connections
-        conn = get_db_connection()
-        conn.execute("UPDATE ingredients SET density_g_ml = ? WHERE id = ?", (density_g_ml, ing_id))
-        conn.commit()
-        conn.close()
-
-        # 2. Re-open connection and do the main update
-        conn = get_db_connection()
         new_unit_type = get_base_unit_type(new_unit)
         new_base_unit = get_base_unit(new_unit_type)
 
-        # convert_to_base will now see the density for the ingredient
-        quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id)
+        conn = get_db_connection()
+        current_ingredient = conn.execute("SELECT base_unit_type FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+        current_base_unit_type = current_ingredient['base_unit_type'] if current_ingredient else None
 
-        conn.execute(
-            "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
-            (new_name, quantity_in_base, new_base_unit, new_unit_type, ing_id)
-        )
+        # Scenario: Changing a 'count' ingredient to a 'mass' or 'volume' one.
+        if current_base_unit_type == 'count' and new_unit_type in ['mass', 'volume']:
+            # Fundamentally changing the ingredient's type.
+            # Convert the quantity to the new base unit ('g' or 'ml') without
+            # referencing the ingredient's old 'unit' base.
+            quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit) # No ingredient_id
+
+            conn.execute(
+                """UPDATE ingredients
+                   SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, density_g_ml = ?
+                   WHERE id = ?""",
+                (new_name, quantity_in_base, new_base_unit, new_unit_type, density_g_ml, ing_id)
+            )
+        else:
+            # Standard flow: The ingredient is already a mass/volume type.
+            # 1. Update density first so it's available for the conversion.
+            conn.execute("UPDATE ingredients SET density_g_ml = ? WHERE id = ?", (density_g_ml, ing_id))
+            conn.commit() # Commit this change so convert_to_base can see it.
+
+            # 2. Convert quantity using the new density.
+            # The `ing_id` is crucial here for mass <-> volume conversions.
+            quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id)
+
+            # 3. Update the rest of the details.
+            conn.execute(
+                "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                (new_name, quantity_in_base, new_base_unit, new_unit_type, ing_id)
+            )
+
+        # Always update the preferred display unit for the current view
         conn.execute("""
             INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
             ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
