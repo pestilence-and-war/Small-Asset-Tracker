@@ -32,15 +32,15 @@
             <ul class="recipe-checklist">
                 {% for item in recipe_items %}
                 <li>
-                    <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity }}" checked>
+                    <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity }}">
                     <span class="ingredient-name">{{ item.ingredient.name }}</span>
                     -
-                    <span class="quantity-required">{{ "%.2f"|format(item.required_quantity) }} {{ item.ingredient.base_unit }} required</span>
+                    <span class="quantity-required">{{ item.required_quantity | format_fraction }} {{ item.ingredient.base_unit }} required</span>
 
                     {% if item.in_stock %}
-                        <span class="status-tag in-stock">✅ In Stock ({{ "%.2f"|format(item.pantry_quantity) }} {{ item.ingredient.base_unit }})</span>
+                        <span class="status-tag in-stock">✅ In Stock ({{ item.pantry_quantity | format_fraction }} {{ item.ingredient.base_unit }})</span>
                     {% elif item.pantry_quantity > 0 %}
-                        <span class="status-tag low-stock">⚠️ Low Stock ({{ "%.2f"|format(item.pantry_quantity) }} {{ item.ingredient.base_unit }})</span>
+                        <span class="status-tag low-stock">⚠️ Low Stock ({{ item.pantry_quantity | format_fraction }} {{ item.ingredient.base_unit }})</span>
                     {% else %}
                         <span class="status-tag out-of-stock">❌ Out of Stock</span>
                     {% endif %}
