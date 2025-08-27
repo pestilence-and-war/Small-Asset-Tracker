@@ -352,13 +352,13 @@ def start_cooking_session():
 
     return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions)
 
-def get_ingredient_by_id(ingredient_id, view_name='pantry'):
+def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
     # This is a bit redundant with get_all_ingredients, but it's for a single item.
     # In a larger app, you'd refactor this.
     conn = get_db_connection()
     query = f"""
         SELECT
-            i.id, i.name, i.quantity, i.base_unit, i.base_unit_type,
+            i.id, i.name, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
@@ -375,12 +375,17 @@ def get_ingredient_by_id(ingredient_id, view_name='pantry'):
     item_dict['display_unit'] = display_unit
 
     mass_units, volume_units = get_all_units()
-    if item_dict['base_unit_type'] == 'mass':
-        item_dict['compatible_units'] = mass_units + volume_units
-    elif item_dict['base_unit_type'] == 'volume':
-        item_dict['compatible_units'] = volume_units + mass_units
-    else: # count
-        item_dict['compatible_units'] = ['unit']
+    if for_editing:
+        # For the edit form, we want to show all possible units
+        item_dict['compatible_units'] = mass_units + volume_units + ['unit']
+    else:
+        # For display, only show compatible units
+        if item_dict['base_unit_type'] == 'mass':
+            item_dict['compatible_units'] = mass_units + volume_units
+        elif item_dict['base_unit_type'] == 'volume':
+            item_dict['compatible_units'] = volume_units + mass_units
+        else: # count
+            item_dict['compatible_units'] = ['unit']
 
     try:
         base_quantity = item_dict['quantity']
@@ -438,7 +443,7 @@ def get_ingredient(ing_id):
 @app.route('/edit_ingredient_form/<int:ing_id>')
 def edit_ingredient_form(ing_id):
     view_name = request.args.get('view_name', 'pantry')
-    ingredient = get_ingredient_by_id(ing_id, view_name)
+    ingredient = get_ingredient_by_id(ing_id, view_name, for_editing=True)
     return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name)
 
 @app.route('/edit_ingredient/<int:ing_id>', methods=['POST'])
@@ -446,32 +451,136 @@ def edit_ingredient(ing_id):
     view_name = request.form.get('view_name', 'pantry')
     new_name = request.form.get('name', '').strip().lower()
     new_quantity_str = request.form.get('quantity', '0')
-    unit = request.form.get('unit')
+    new_unit = request.form.get('unit')
 
-    if not new_name or not unit:
-        # Handle error
+    if not new_name or not new_unit:
         ingredient = get_ingredient_by_id(ing_id, view_name)
         return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
 
     conn = get_db_connection()
     try:
-        new_quantity = parse_quantity(new_quantity_str)
-        # Convert the new quantity from the display unit back to the base unit for storage
-        quantity_in_base, _, _ = convert_to_base(new_quantity, unit, ing_id)
+        current_ingredient_raw = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
+        if not current_ingredient_raw:
+            conn.close()
+            return "Ingredient not found", 404
 
-        conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, quantity_in_base, ing_id))
-        conn.commit()
-    except ValueError as e:
-        print(f"Error parsing quantity or converting: {e}")
-        # On error, just return the un-edited item
-    except Exception as e:
-        print(f"Error updating ingredient: {e}")
-        # Handle other potential DB errors
+        current_ingredient = dict(current_ingredient_raw)
+        current_base_unit_type = current_ingredient['base_unit_type']
+
+        new_quantity = parse_quantity(new_quantity_str)
+        new_unit_type = get_base_unit_type(new_unit)
+
+        if not new_unit_type:
+            raise ValueError(f"Invalid unit provided: {new_unit}")
+
+        # Scenario 1: Unit type is not changing, or we are changing TO a count type (which doesn't need density)
+        if new_unit_type == current_base_unit_type or new_unit_type == 'count':
+            if new_unit_type != current_base_unit_type:
+                 # Type is changing (e.g. g -> unit), so we need to change the base unit and type
+                 quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit)
+                 conn.execute(
+                    "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                    (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+                )
+            else:
+                # Type is the same, just update name and quantity
+                quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id)
+                conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, quantity_in_base, ing_id))
+
+            # Always update the preferred display unit
+            conn.execute("""
+                INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
+                ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+            """, (ing_id, view_name, new_unit))
+            conn.commit()
+
+        # Scenario 2: Unit type is changing to mass/volume and might need density
+        else: # new_unit_type is 'mass' or 'volume'
+            density_missing = not current_ingredient.get('density_g_ml')
+
+            if density_missing:
+                # We need to prompt for density. The template will be created in the next step.
+                return render_template(
+                    '_update_density_prompt.html',
+                    ingredient=current_ingredient,
+                    new_name=new_name,
+                    new_quantity=new_quantity,
+                    new_unit=new_unit,
+                    view_name=view_name
+                )
+            else: # Density exists, so we can change between mass and volume
+                # We can use convert_to_base with the ingredient_id because a density exists
+                quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id)
+                conn.execute(
+                    "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                    (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+                )
+                conn.execute("""
+                    INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
+                    ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+                """, (ing_id, view_name, new_unit))
+                conn.commit()
+
+    except (ValueError, TypeError) as e:
+        print(f"Error in edit_ingredient: {e}")
+        ingredient = get_ingredient_by_id(ing_id, view_name)
+        return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
     finally:
-        conn.close()
+        if conn: conn.close()
 
     ingredient = get_ingredient_by_id(ing_id, view_name)
     return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
+
+@app.route('/update_ingredient_details/<int:ing_id>', methods=['POST'])
+def update_ingredient_details(ing_id):
+    view_name = request.form.get('view_name', 'pantry')
+    new_name = request.form.get('new_name', '').strip().lower()
+    new_quantity_str = request.form.get('new_quantity', '0')
+    new_unit = request.form.get('new_unit')
+    density_g_ml_str = request.form.get('density_g_ml')
+
+    if not all([new_name, new_unit, density_g_ml_str]):
+        return "Error: Missing required fields.", 400
+
+    conn = None
+    try:
+        new_quantity = parse_quantity(new_quantity_str)
+        density_g_ml = float(density_g_ml_str)
+
+        # 1. Update density and commit so it's visible to other connections
+        conn = get_db_connection()
+        conn.execute("UPDATE ingredients SET density_g_ml = ? WHERE id = ?", (density_g_ml, ing_id))
+        conn.commit()
+        conn.close()
+
+        # 2. Re-open connection and do the main update
+        conn = get_db_connection()
+        new_unit_type = get_base_unit_type(new_unit)
+        new_base_unit = get_base_unit(new_unit_type)
+
+        # convert_to_base will now see the density for the ingredient
+        quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id)
+
+        conn.execute(
+            "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+            (new_name, quantity_in_base, new_base_unit, new_unit_type, ing_id)
+        )
+        conn.execute("""
+            INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
+            ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+        """, (ing_id, view_name, new_unit))
+        conn.commit()
+
+    except (ValueError, TypeError) as e:
+        print(f"Error in update_ingredient_details: {e}")
+        # Best effort to not break the UI. A more robust solution would provide an error message.
+        if conn: conn.rollback()
+    finally:
+        if conn: conn.close()
+
+    ingredient = get_ingredient_by_id(ing_id, view_name)
+    return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
+
 
 @app.route('/delete_ingredient/<int:ing_id>', methods=['DELETE'])
 def delete_ingredient(ing_id):

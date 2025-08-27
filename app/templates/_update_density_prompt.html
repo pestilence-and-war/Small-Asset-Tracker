@@ -1,0 +1,22 @@
+<li class="ingredient-item edit-mode">
+    <div id="conversion-prompt" class="conversion-prompt">
+        <h4>Update Ingredient: Density Needed</h4>
+        <p>You are changing <strong>{{ ingredient.name }}</strong> to a unit of mass or volume. To allow for future conversions, please provide its density.</p>
+        <p class="small-text">Don't know the density in g/ml? <button type="button" class="link-button" onclick="openModalAndTab('Density')">Calculate it here</button>.</p>
+        <form hx-post="/update_ingredient_details/{{ ingredient.id }}" hx-target="closest li" hx-swap="outerHTML">
+            <input type="hidden" name="new_name" value="{{ new_name }}">
+            <input type="hidden" name="new_quantity" value="{{ new_quantity }}">
+            <input type="hidden" name="new_unit" value="{{ new_unit }}">
+            <input type="hidden" name="view_name" value="{{ view_name }}">
+
+            <label for="density">Density (grams per milliliter):</label>
+            <input type="number" name="density_g_ml" id="density" step="any" required placeholder="e.g., 1 for water, 0.53 for flour">
+
+            <div class="form-buttons">
+                <button type="submit">Save Changes</button>
+                <button type="button" hx-get="/ingredient/{{ ingredient.id }}?view_name={{ view_name or 'pantry' }}" hx-target="closest li" hx-swap="outerHTML" class="cancel-btn">Cancel</button>
+            </div>
+        </form>
+        <p class="small-text">Why is this needed? The application stores all convertible ingredients by a base unit (grams or milliliters) for accuracy. Providing a density (g/mL) allows the system to correctly handle both weight and volume units for this ingredient.</p>
+    </div>
+</li>
