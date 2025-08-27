@@ -493,7 +493,9 @@ def edit_ingredient(ing_id):
 
             # Scenario 2: Unit type is changing between mass/volume and density is required
             else:
+
                 if not current_ingredient['density_g_ml']:
+
                     # The 'with conn' block will close the connection, so we can safely return a prompt here.
                     # No changes have been committed.
                     return render_template(
