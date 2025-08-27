@@ -15,6 +15,7 @@
                 <a href="/" class="active">Home</a>
                 <a href="/pantry">Edit Pantry</a>
                 <a href="/recipes">Recipe Manager</a>
+                <button type="button" onclick="openModal()" class="button-secondary">Unit Converter</button>
             </nav>
         </header>
 
@@ -43,5 +44,7 @@
         <a href="/pantry" class="button">Edit Pantry</a>
 
     </div>
+
+    {% include '_converter_modal.html' %}
 </body>
 </html>

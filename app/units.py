@@ -9,7 +9,7 @@ def get_base_unit_type(unit):
     if unit in ['g', 'kg', 'lb', 'oz']:
         return 'mass'
     # Volume
-    if unit in ['ml', 'l', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint', 'teaspoon', 'tablespoon']:
+    if unit in ['ml', 'l', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint', 'teaspoon', 'tablespoon', 'cc']:
         return 'volume'
     # Count
     if unit in ['unit', 'units']:
@@ -216,3 +216,161 @@ def get_new_ingredient_conversion_prompt_html(ingredient_name, original_quantity
         <p class="small-text">Why is this needed? The application stores all convertible ingredients by mass (grams) for accuracy. Providing a density (g/mL) allows the system to correctly handle both weight and volume units for '{ingredient_name}' in the future.</p>
     </div>
     """
+
+def format_fraction(num):
+    """
+    Converts a float to a string, including common cooking fractions.
+    e.g., 1.5 -> "1 1/2", 0.25 -> "1/4"
+    """
+    if num is None:
+        return ""
+    if num == 0:
+        return "0"
+
+    integer_part = int(num)
+    decimal_part = num - integer_part
+
+    # Common fractions and their decimal equivalents
+    fractions = {
+        1/8: "1/8", 1/4: "1/4", 1/3: "1/3", 1/2: "1/2",
+        2/3: "2/3", 3/4: "3/4",
+    }
+
+    # Find the closest fraction within a small tolerance
+    closest_fraction = ""
+    min_diff = float('inf')
+    for frac_val, frac_str in fractions.items():
+        diff = abs(decimal_part - frac_val)
+        if diff < 0.01: # Tolerance for floating point inaccuracies
+            if diff < min_diff:
+                min_diff = diff
+                closest_fraction = frac_str
+
+    # Format the final string
+    integer_str = str(integer_part) if integer_part > 0 else ""
+    if closest_fraction:
+        if integer_str:
+            return f"{integer_str} {closest_fraction}"
+        else:
+            return closest_fraction
+    else:
+        # If no common fraction is found, round to 2 decimal places
+        return f"{num:.2f}".rstrip('0').rstrip('.')
+
+
+def convert_from_base(base_quantity, base_unit, density_g_ml=None):
+    """
+    Converts a quantity from its base unit (g, ml, unit) to a more
+    human-readable format for recipes.
+    """
+    if base_unit == 'unit':
+        return f"{format_fraction(base_quantity)} {base_unit}"
+    if base_quantity == 0:
+        return f"0 {base_unit}"
+
+    # Standard volume units from largest to smallest for intelligent selection
+    preferred_units = ['gallon', 'quart', 'pint', 'cup', 'tbsp', 'tsp']
+    quantity_in_ml = 0
+
+    if base_unit == 'ml':
+        quantity_in_ml = base_quantity
+    elif base_unit == 'g':
+        if not density_g_ml or density_g_ml == 0:
+            # Cannot convert to volume, so return in grams
+            return f"{base_quantity:.2f} g".rstrip('0').rstrip('.')
+        quantity_in_ml = base_quantity / density_g_ml
+    else:
+        return f"{base_quantity} {base_unit}" # Should not happen for mass/volume
+
+    conn = get_db_connection()
+    try:
+        # Special handling for cups, as it's very common in recipes
+        cup_factor = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = 'cup' AND to_unit = 'ml'").fetchone()['factor']
+        quantity_in_cups = quantity_in_ml / cup_factor
+        if 0.25 <= quantity_in_cups < 4:
+             return f"{format_fraction(quantity_in_cups)} cup"
+
+        # General handling for other units
+        for unit in preferred_units:
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'ml'", (unit,)).fetchone()
+            if res:
+                factor = res['factor']
+                converted_quantity = quantity_in_ml / factor
+                if converted_quantity >= 1: # Use this unit if it's at least 1
+                    formatted_qty = format_fraction(converted_quantity)
+                    return f"{formatted_qty} {unit}"
+
+        # Fallback for very small quantities
+        if quantity_in_cups > 0:
+            return f"{format_fraction(quantity_in_cups)} cup"
+
+        # If the quantity is too small for even a tsp, return in ml
+        return f"{quantity_in_ml:.2f} ml".rstrip('0').rstrip('.')
+    finally:
+        conn.close()
+
+def convert_units(quantity, from_unit, to_unit, ingredient_id=None):
+    """
+    A general-purpose function to convert between any two units.
+    """
+    from_unit = from_unit.lower().strip()
+    to_unit = to_unit.lower().strip()
+
+    if from_unit == to_unit:
+        return quantity
+
+    # Step 1: Convert the initial quantity to its base unit (g or ml)
+    base_quantity, base_unit, base_unit_type = convert_to_base(quantity, from_unit, ingredient_id)
+
+    to_unit_type = get_base_unit_type(to_unit)
+
+    if not to_unit_type:
+        raise ValueError(f"Unknown unit type for '{to_unit}'")
+
+    conn = get_db_connection()
+    try:
+        # Case 1: Target unit is the same type as the base unit (e.g., g -> oz, ml -> cup)
+        if to_unit_type == base_unit_type:
+            if to_unit == base_unit:
+                return base_quantity
+            # Find a conversion factor
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (base_unit, to_unit)).fetchone()
+            if res:
+                return base_quantity * res['factor']
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (to_unit, base_unit)).fetchone()
+            if res:
+                return base_quantity / res['factor']
+
+        # Case 2: Target unit is a different type (mass <-> volume)
+        elif {to_unit_type, base_unit_type} == {'mass', 'volume'}:
+            ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+            if not ingredient or not ingredient['density_g_ml']:
+                raise ValueError(f"Density required to convert between {base_unit_type} and {to_unit_type} for this ingredient.")
+            density = ingredient['density_g_ml']
+
+            # Path: base_unit -> ml -> to_unit
+            quantity_in_ml = 0
+            if base_unit_type == 'volume': # base_unit is ml
+                quantity_in_ml = base_quantity
+            elif base_unit_type == 'mass': # base_unit is g
+                quantity_in_ml = base_quantity / density
+
+            # Now we have the quantity in ml, convert it to the to_unit
+            if to_unit_type == 'volume':
+                if to_unit == 'ml':
+                    return quantity_in_ml
+                res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'ml'", (to_unit,)).fetchone()
+                if res:
+                    return quantity_in_ml / res['factor']
+            elif to_unit_type == 'mass':
+                quantity_in_g = quantity_in_ml * density
+                if to_unit == 'g':
+                    return quantity_in_g
+                res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'g'", (to_unit,)).fetchone()
+                if res:
+                    return quantity_in_g / res['factor']
+
+        raise ValueError(f"Could not find a conversion path from '{from_unit}' to '{to_unit}'")
+
+    finally:
+        conn.close()

@@ -97,11 +97,15 @@ def seed_db():
     # Standard conversions
     unit_conversions_to_seed = [
         ('lb', 'g', 453.592), ('kg', 'g', 1000),
-        ('oz', 'g', 28.3495), ('gallon', 'ml', 3785.41),
-        ('quart', 'ml', 946.353), ('pint', 'ml', 473.176),
+        ('oz', 'g', 28.3495),
+        ('gallon', 'ml', 3785.41),
+        ('quart', 'ml', 946.353),
+        ('pint', 'ml', 473.176),
         ('cup', 'ml', 236.588),
         ('tbsp', 'ml', 14.7868), ('tablespoon', 'ml', 14.7868),
-        ('tsp', 'ml', 4.92892), ('teaspoon', 'ml', 4.92892)
+        ('tsp', 'ml', 4.92892), ('teaspoon', 'ml', 4.92892),
+        ('l', 'ml', 1000),
+        ('cc', 'ml', 1)
     ]
     cursor.executemany(
         "INSERT INTO unit_conversions (from_unit, to_unit, factor) VALUES (?, ?, ?)",
