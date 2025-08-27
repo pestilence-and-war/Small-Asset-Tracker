@@ -130,6 +130,18 @@ function openModal() {
   document.getElementById('unit-converter-modal').style.display = 'block';
 }
 
+function openModalAndTab(tabName) {
+    openModal();
+    // Use a small timeout to ensure the modal is visible before clicking the tab
+    setTimeout(() => {
+        // Find the button that controls the target tab and click it
+        const tabButton = Array.from(document.querySelectorAll('.tablinks')).find(btn => btn.textContent.trim() === tabName);
+        if (tabButton) {
+            tabButton.click();
+        }
+    }, 50);
+}
+
 function closeModal() {
   document.getElementById('unit-converter-modal').style.display = 'none';
 }

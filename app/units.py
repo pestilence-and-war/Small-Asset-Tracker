@@ -1,4 +1,50 @@
 from app.database import get_db_connection
+import re
+
+def parse_quantity(quantity_str):
+    """
+    Parses a quantity string that can be a decimal, a fraction, or a mixed number.
+    e.g., "1.5", "1/2", "1 1/2"
+    """
+    if not isinstance(quantity_str, str):
+        return float(quantity_str)
+
+    quantity_str = quantity_str.strip()
+
+    # Check for mixed number, e.g., "1 1/2"
+    if ' ' in quantity_str:
+        parts = quantity_str.split(' ')
+        if len(parts) == 2:
+            try:
+                whole_num = float(parts[0])
+                fraction_parts = parts[1].split('/')
+                if len(fraction_parts) == 2:
+                    numerator = float(fraction_parts[0])
+                    denominator = float(fraction_parts[1])
+                    if denominator == 0:
+                        raise ValueError("Denominator cannot be zero.")
+                    return whole_num + (numerator / denominator)
+            except (ValueError, IndexError):
+                raise ValueError(f"Invalid mixed number format: '{quantity_str}'")
+
+    # Check for a simple fraction, e.g., "1/2"
+    if '/' in quantity_str:
+        fraction_parts = quantity_str.split('/')
+        if len(fraction_parts) == 2:
+            try:
+                numerator = float(fraction_parts[0])
+                denominator = float(fraction_parts[1])
+                if denominator == 0:
+                    raise ValueError("Denominator cannot be zero.")
+                return numerator / denominator
+            except ValueError:
+                raise ValueError(f"Invalid fraction format: '{quantity_str}'")
+
+    # Otherwise, try to convert to float directly
+    try:
+        return float(quantity_str)
+    except ValueError:
+        raise ValueError(f"Could not parse quantity: '{quantity_str}'")
 
 def get_base_unit_type(unit):
     """
@@ -204,6 +250,7 @@ def get_new_ingredient_conversion_prompt_html(ingredient_name, original_quantity
     <div id="conversion-prompt" class="conversion-prompt">
         <h4>New Ingredient: Density Needed</h4>
         <p>To allow for conversions between mass and volume (e.g., cups to grams), please provide the density for <strong>{ingredient_name}</strong>.</p>
+        <p class="small-text">Don't know the density in g/ml? <button type="button" class="link-button" onclick="openModalAndTab('Density')">Calculate it here</button>.</p>
         <form hx-post="/add_new_ingredient_with_density" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="this.closest('#conversion-prompt').remove()">
             <input type="hidden" name="ingredient_name" value="{ingredient_name}">
             <input type="hidden" name="original_quantity" value="{original_quantity}">

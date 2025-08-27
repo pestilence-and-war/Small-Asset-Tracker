@@ -4,7 +4,7 @@ from app.database import get_db_connection
 from app.units import (
     convert_to_base, needs_conversion_prompt, get_conversion_prompt_html,
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
-    convert_units, format_fraction, convert_from_base
+    convert_units, format_fraction, convert_from_base, parse_quantity
 )
 
 def get_all_units():
@@ -40,7 +40,7 @@ def pantry():
 def add_ingredient():
     ingredient_name = request.form['ingredient_name'].strip().lower()
     try:
-        quantity = float(request.form.get('quantity', 0))
+        quantity = parse_quantity(request.form.get('quantity', '0'))
     except (ValueError, TypeError):
         quantity = 0
     unit = request.form.get('unit', '').strip().lower()
@@ -494,7 +494,7 @@ def add_ingredient_to_meal(meal_id):
 
         ingredient_id = ingredient['id']
         try:
-            ingredient_quantity = float(quantity)
+            ingredient_quantity = parse_quantity(quantity)
         except ValueError:
             return "Invalid quantity."
 
