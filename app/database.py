@@ -14,6 +14,7 @@ def init_db():
     conn.execute('DROP TABLE IF EXISTS meals')
     conn.execute('DROP TABLE IF EXISTS unit_conversions')
     conn.execute('DROP TABLE IF EXISTS ingredient_conversions')
+    conn.execute('DROP TABLE IF EXISTS ingredient_view_units')
 
     conn.execute('''
         CREATE TABLE IF NOT EXISTS ingredients (
@@ -60,6 +61,16 @@ def init_db():
             factor REAL NOT NULL,
             FOREIGN KEY (ingredient_id) REFERENCES ingredients (id),
             UNIQUE(ingredient_id, from_unit, to_unit)
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS ingredient_view_units (
+            id INTEGER PRIMARY KEY,
+            ingredient_id INTEGER NOT NULL,
+            view_name TEXT NOT NULL, -- e.g., 'pantry', 'recipe_manager'
+            unit TEXT NOT NULL,
+            FOREIGN KEY (ingredient_id) REFERENCES ingredients (id),
+            UNIQUE(ingredient_id, view_name)
         )
     ''')
     conn.commit()

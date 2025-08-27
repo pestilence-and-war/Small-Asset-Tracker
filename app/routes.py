@@ -13,11 +13,56 @@ def get_all_units():
     volume_units = ['ml', 'l', 'cc', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint']
     return mass_units, volume_units
 
-def get_all_ingredients():
+def get_all_ingredients(view_name='pantry'):
     conn = get_db_connection()
-    ingredients = conn.execute('SELECT * FROM ingredients ORDER BY name').fetchall()
+    # Join with ingredient_view_units to get the preferred display unit
+    query = f"""
+        SELECT
+            i.id, i.name, i.quantity, i.base_unit, i.base_unit_type,
+            ivu.unit as display_unit
+        FROM ingredients i
+        LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
+        ORDER BY i.name
+    """
+    ingredients_raw = conn.execute(query, (view_name,)).fetchall()
+
+    processed_ingredients = []
+    mass_units, volume_units = get_all_units()
+
+    for item in ingredients_raw:
+        item_dict = dict(item)
+        display_unit = item_dict['display_unit'] or item_dict['base_unit']
+        item_dict['display_unit'] = display_unit
+
+        # Determine compatible units for the dropdown
+        if item_dict['base_unit_type'] == 'mass':
+            item_dict['compatible_units'] = mass_units + volume_units
+        elif item_dict['base_unit_type'] == 'volume':
+            item_dict['compatible_units'] = volume_units + mass_units
+        else: # count
+            item_dict['compatible_units'] = ['unit']
+
+
+        # Convert the base quantity to the display quantity
+        try:
+            base_quantity = item_dict['quantity']
+            base_unit = item_dict['base_unit']
+            if base_unit == display_unit:
+                item_dict['display_quantity'] = base_quantity
+            else:
+                item_dict['display_quantity'] = convert_units(base_quantity, base_unit, display_unit, item_dict['id'])
+        except ValueError as e:
+            print(f"Conversion error for {item_dict['name']}: {e}")
+            # If conversion fails, display the base quantity and a special unit
+            item_dict['display_quantity'] = item_dict['quantity']
+            item_dict['display_unit'] = item_dict['base_unit']
+            item_dict['conversion_error'] = True
+
+
+        processed_ingredients.append(item_dict)
+
     conn.close()
-    return ingredients
+    return processed_ingredients
 
 def get_all_meals():
     conn = get_db_connection()
@@ -128,19 +173,29 @@ def search():
 def update_quantity():
     ingredient_id = request.form['id']
     change = float(request.form['change'])
+    view_name = request.form.get('view_name', 'pantry')
 
     conn = get_db_connection()
+    # We first need to get the ingredient to know its base unit for the conversion.
+    ingredient_raw = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+    if not ingredient_raw:
+        conn.close()
+        return "Ingredient not found", 404
+
+    # The 'change' is in the current display unit. We need to convert it to the base unit.
+    display_unit = request.form['unit']
+    change_in_base_unit, _, _ = convert_to_base(change, display_unit, ingredient_id)
+
     conn.execute(
         "UPDATE ingredients SET quantity = quantity + ? WHERE id = ?",
-        (change, ingredient_id)
+        (change_in_base_unit, ingredient_id)
     )
     conn.commit()
-
-    # Fetch the updated ingredient to send back
-    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
     conn.close()
 
-    return render_template('_ingredient_item.html', ingredient=ingredient)
+    # Fetch the updated ingredient to send back, with the correct display unit
+    ingredient = get_ingredient_by_id(ingredient_id, view_name)
+    return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
 
 @app.route('/add_conversion', methods=['POST'])
 def add_conversion():
@@ -285,47 +340,126 @@ def start_cooking_session():
 
     return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions)
 
+def get_ingredient_by_id(ingredient_id, view_name='pantry'):
+    # This is a bit redundant with get_all_ingredients, but it's for a single item.
+    # In a larger app, you'd refactor this.
+    conn = get_db_connection()
+    query = f"""
+        SELECT
+            i.id, i.name, i.quantity, i.base_unit, i.base_unit_type,
+            ivu.unit as display_unit
+        FROM ingredients i
+        LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
+        WHERE i.id = ?
+    """
+    item = conn.execute(query, (view_name, ingredient_id)).fetchone()
+
+    if not item:
+        conn.close()
+        return None
+
+    item_dict = dict(item)
+    display_unit = item_dict['display_unit'] or item_dict['base_unit']
+    item_dict['display_unit'] = display_unit
+
+    mass_units, volume_units = get_all_units()
+    if item_dict['base_unit_type'] == 'mass':
+        item_dict['compatible_units'] = mass_units + volume_units
+    elif item_dict['base_unit_type'] == 'volume':
+        item_dict['compatible_units'] = volume_units + mass_units
+    else: # count
+        item_dict['compatible_units'] = ['unit']
+
+    try:
+        base_quantity = item_dict['quantity']
+        base_unit = item_dict['base_unit']
+        if base_unit == display_unit:
+            item_dict['display_quantity'] = base_quantity
+        else:
+            item_dict['display_quantity'] = convert_units(base_quantity, base_unit, display_unit, item_dict['id'])
+    except ValueError as e:
+        print(f"Conversion error for {item_dict['name']}: {e}")
+        item_dict['display_quantity'] = item_dict['quantity']
+        item_dict['display_unit'] = item_dict['base_unit']
+        item_dict['conversion_error'] = True
+
+    conn.close()
+    return item_dict
+
+@app.route('/update_ingredient_display_unit/<int:ingredient_id>', methods=['POST'])
+def update_ingredient_display_unit(ingredient_id):
+    new_unit = request.form.get('unit')
+    view_name = request.form.get('view_name', 'pantry')
+
+    if not new_unit:
+        # Handle error
+        return "No unit provided", 400
+
+    conn = get_db_connection()
+    try:
+        # Use INSERT OR REPLACE to either create a new preference or update an existing one
+        conn.execute("""
+            INSERT INTO ingredient_view_units (ingredient_id, view_name, unit)
+            VALUES (?, ?, ?)
+            ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+        """, (ingredient_id, view_name, new_unit))
+        conn.commit()
+    except Exception as e:
+        print(f"Error updating display unit: {e}")
+        conn.close()
+        # Handle error
+        return "Error updating preference", 500
+    finally:
+        if conn: conn.close()
+
+    # Fetch the updated ingredient data and return the rendered partial
+    ingredient = get_ingredient_by_id(ingredient_id, view_name)
+    return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
+
+
 @app.route('/ingredient/<int:ing_id>')
 def get_ingredient(ing_id):
-    conn = get_db_connection()
-    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-    conn.close()
+    # This route might be deprecated by the new get_ingredient_by_id, but we'll keep it for now.
+    ingredient = get_ingredient_by_id(ing_id)
     return render_template('_ingredient_item.html', ingredient=ingredient)
 
 @app.route('/edit_ingredient_form/<int:ing_id>')
 def edit_ingredient_form(ing_id):
-    conn = get_db_connection()
-    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-    conn.close()
-    return render_template('_edit_ingredient_form.html', ingredient=ingredient)
+    view_name = request.args.get('view_name', 'pantry')
+    ingredient = get_ingredient_by_id(ing_id, view_name)
+    return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name)
 
 @app.route('/edit_ingredient/<int:ing_id>', methods=['POST'])
 def edit_ingredient(ing_id):
-    conn = get_db_connection()
+    view_name = request.form.get('view_name', 'pantry')
     new_name = request.form.get('name', '').strip().lower()
-    new_quantity = request.form.get('quantity', 0)
+    new_quantity_str = request.form.get('quantity', '0')
+    unit = request.form.get('unit')
 
-    if not new_name:
-        # Handle error: name cannot be empty
-        # For simplicity, we'll just fetch the original ingredient and return it
-        ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-        conn.close()
-        return render_template('_ingredient_item.html', ingredient=ingredient)
+    if not new_name or not unit:
+        # Handle error
+        ingredient = get_ingredient_by_id(ing_id, view_name)
+        return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
 
+    conn = get_db_connection()
     try:
-        new_quantity = float(new_quantity)
-        conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, new_quantity, ing_id))
+        new_quantity = parse_quantity(new_quantity_str)
+        # Convert the new quantity from the display unit back to the base unit for storage
+        quantity_in_base, _, _ = convert_to_base(new_quantity, unit, ing_id)
+
+        conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, quantity_in_base, ing_id))
         conn.commit()
-    except ValueError:
-        # Handle error: quantity is not a valid float
-        pass # For simplicity, we do nothing
+    except ValueError as e:
+        print(f"Error parsing quantity or converting: {e}")
+        # On error, just return the un-edited item
     except Exception as e:
         print(f"Error updating ingredient: {e}")
         # Handle other potential DB errors
+    finally:
+        conn.close()
 
-    ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-    conn.close()
-    return render_template('_ingredient_item.html', ingredient=ingredient)
+    ingredient = get_ingredient_by_id(ing_id, view_name)
+    return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
 
 @app.route('/delete_ingredient/<int:ing_id>', methods=['DELETE'])
 def delete_ingredient(ing_id):
@@ -426,9 +560,8 @@ def calculate_density():
     except Exception as e:
         return f"<p class='error'>An unexpected error occurred: {e}</p>"
 
-def get_meal_ingredients(meal_id):
+def get_meal_ingredients(meal_id, view_name='recipe'):
     conn = get_db_connection()
-    # We need more info from the ingredients table for conversion
     meal_ingredients_raw = conn.execute("""
         SELECT
             i.id as ingredient_id,
@@ -438,28 +571,49 @@ def get_meal_ingredients(meal_id):
             i.density_g_ml,
             mi.quantity,
             mi.unit,
-            mi.id as meal_ingredient_id
+            mi.id as meal_ingredient_id,
+            ivu.unit as display_unit
         FROM meal_ingredients mi
         JOIN ingredients i ON mi.ingredient_id = i.id
+        LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
         WHERE mi.meal_id = ?
         ORDER BY i.name
-    """, (meal_id,)).fetchall()
+    """, (view_name, meal_id)).fetchall()
 
-    # Process the ingredients to add a "pretty" quantity
     processed_ingredients = []
+    mass_units, volume_units = get_all_units()
+
     for item in meal_ingredients_raw:
         item_dict = dict(item)
+
+        # The 'unit' from meal_ingredients is the one specified in the recipe.
+        # The 'display_unit' is the user's preference for viewing.
+        # For recipes, we should probably default to the recipe's unit if no preference is set.
+        display_unit = item_dict['display_unit'] or item_dict['unit']
+        item_dict['display_unit'] = display_unit
+
+        # Determine compatible units for the dropdown
+        if item_dict['base_unit_type'] == 'mass':
+            item_dict['compatible_units'] = mass_units + volume_units
+        elif item_dict['base_unit_type'] == 'volume':
+            item_dict['compatible_units'] = volume_units + mass_units
+        else: # count
+            item_dict['compatible_units'] = ['unit']
+
+        # Convert the recipe quantity to the display quantity
         try:
-            # First, convert the recipe quantity (e.g., 1.5 cups) to the base unit (e.g., 180g)
-            base_quantity, base_unit, _ = convert_to_base(item['quantity'], item['unit'], item['ingredient_id'])
-            # Now, convert that base quantity into a nice format (e.g., "1 1/2 cups")
-            # We pass the original density to handle mass-to-volume conversions
-            pretty_quantity = convert_from_base(base_quantity, base_unit, item['density_g_ml'])
-            item_dict['pretty_quantity'] = pretty_quantity
+            recipe_quantity = item_dict['quantity']
+            recipe_unit = item_dict['unit']
+            if recipe_unit == display_unit:
+                item_dict['display_quantity'] = recipe_quantity
+            else:
+                # We need to convert from the recipe unit to the display unit
+                item_dict['display_quantity'] = convert_units(recipe_quantity, recipe_unit, display_unit, item_dict['ingredient_id'])
         except ValueError as e:
-            print(f"Could not create pretty quantity for {item['name']}: {e}")
-            # Fallback to the original quantity and unit
-            item_dict['pretty_quantity'] = f"{format_fraction(item['quantity'])} {item['unit']}"
+            print(f"Conversion error for {item_dict['name']} in recipe: {e}")
+            item_dict['display_quantity'] = item_dict['quantity']
+            item_dict['display_unit'] = item_dict['unit'] # Fallback to recipe unit
+            item_dict['conversion_error'] = True
 
         processed_ingredients.append(item_dict)
 
@@ -513,6 +667,35 @@ def add_ingredient_to_meal(meal_id):
     conn.close()
     meal_ingredients = get_meal_ingredients(meal_id)
     return render_template('_meal_ingredients_list.html', meal=meal, meal_ingredients=meal_ingredients)
+
+@app.route('/update_recipe_ingredient_unit/<int:meal_id>/<int:ingredient_id>', methods=['POST'])
+def update_recipe_ingredient_unit(meal_id, ingredient_id):
+    new_unit = request.form.get('unit')
+    view_name = 'recipe' # Hardcoded for this route
+
+    if not new_unit:
+        return "No unit provided", 400
+
+    conn = get_db_connection()
+    try:
+        conn.execute("""
+            INSERT INTO ingredient_view_units (ingredient_id, view_name, unit)
+            VALUES (?, ?, ?)
+            ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+        """, (ingredient_id, view_name, new_unit))
+        conn.commit()
+    except Exception as e:
+        print(f"Error updating display unit for recipe: {e}")
+    finally:
+        if conn: conn.close()
+
+    # Re-fetch the meal and ingredients and return the list partial
+    conn = get_db_connection()
+    meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
+    conn.close()
+    meal_ingredients = get_meal_ingredients(meal_id)
+    return render_template('_meal_ingredients_list.html', meal=meal, meal_ingredients=meal_ingredients)
+
 
 @app.route('/remove_ingredient_from_meal/<int:meal_id>/<int:meal_ingredient_id>', methods=['DELETE'])
 def remove_ingredient_from_meal(meal_id, meal_ingredient_id):
