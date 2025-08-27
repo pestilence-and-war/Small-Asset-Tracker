@@ -1,6 +1,7 @@
 from flask import render_template, request, make_response, jsonify
 from app import app
 from app.database import get_db_connection
+from thefuzz import process
 from app.units import (
     convert_to_base, needs_conversion_prompt, get_conversion_prompt_html,
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
@@ -158,15 +159,26 @@ def add_ingredient():
 @app.route('/search')
 def search():
     query = request.args.get('q', '').strip().lower()
-    conn = get_db_connection()
+    ingredients = []
     if query:
-        ingredients = conn.execute(
-            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
-            (query + '%',)
-        ).fetchall()
-    else:
-        ingredients = []
-    conn.close()
+        conn = get_db_connection()
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        conn.close()
+
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+
+        # Use thefuzz to find best matches
+        # We extract tuples of (name, score)
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+
+        # Get the full ingredient object for each match
+        conn = get_db_connection()
+        for name, score in matches:
+            if score > 50: # Set a threshold to avoid very irrelevant matches
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[name],)).fetchone()
+                ingredients.append(ingredient)
+        conn.close()
+
     return render_template('_search_results.html', ingredients=ingredients)
 
 @app.route('/update_quantity', methods=['POST'])
@@ -478,18 +490,56 @@ def delete_ingredient(ing_id):
 
     return "" # Return an empty string as the element will be removed from the DOM
 
+@app.route('/batch_add_ingredients', methods=['POST'])
+def batch_add_ingredients():
+    ingredients_list_str = request.form.get('ingredients_list', '')
+    if not ingredients_list_str:
+        ingredients = get_all_ingredients()
+        return render_template('_ingredients_list.html', ingredients=ingredients)
+
+    ingredient_names = [name.strip().lower() for name in ingredients_list_str.split(',') if name.strip()]
+
+    conn = get_db_connection()
+    try:
+        with conn:
+            for name in ingredient_names:
+                # Check if ingredient already exists
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM ingredients WHERE name = ?", (name,))
+                if cursor.fetchone() is None:
+                    # If not, insert it with default values
+                    cursor.execute(
+                        "INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)",
+                        (name, 0, 'unit', 'count')
+                    )
+    except Exception as e:
+        print(f"Error in batch_add_ingredients: {e}")
+    finally:
+        if conn: conn.close()
+
+    # Return the full, updated ingredient list to be swapped into the DOM
+    ingredients = get_all_ingredients()
+    return render_template('_ingredients_list.html', ingredients=ingredients)
+
 @app.route('/search_for_converter', methods=['POST'])
 def search_for_converter():
     query = request.form.get('ingredient_name', '').strip().lower()
-    conn = get_db_connection()
+    ingredients = []
     if query:
-        ingredients = conn.execute(
-            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
-            (query + '%',)
-        ).fetchall()
-    else:
-        ingredients = []
-    conn.close()
+        conn = get_db_connection()
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        conn.close()
+
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+
+        conn = get_db_connection()
+        for name, score in matches:
+            if score > 50:
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[name],)).fetchone()
+                ingredients.append(ingredient)
+        conn.close()
+
     return render_template('_search_results_for_converter.html', ingredients=ingredients)
 
 @app.route('/calculate_conversion', methods=['POST'])
@@ -712,15 +762,22 @@ def remove_ingredient_from_meal(meal_id, meal_ingredient_id):
 @app.route('/search_ingredients_for_recipe/<int:meal_id>', methods=['POST'])
 def search_ingredients_for_recipe(meal_id):
     query = request.form.get('q', '').strip().lower()
-    conn = get_db_connection()
+    ingredients = []
     if query:
-        ingredients = conn.execute(
-            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
-            (query + '%',)
-        ).fetchall()
-    else:
-        ingredients = []
-    conn.close()
+        conn = get_db_connection()
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        conn.close()
+
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+
+        conn = get_db_connection()
+        for name, score in matches:
+            if score > 50:
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[name],)).fetchone()
+                ingredients.append(ingredient)
+        conn.close()
+
     return render_template('_search_results_for_recipe.html', ingredients=ingredients, meal_id=meal_id)
 
 @app.route('/select_ingredient', methods=['POST'])
@@ -740,15 +797,22 @@ def meal_page(meal_id):
 @app.route('/search_ingredients_for_cooking', methods=['POST'])
 def search_ingredients_for_cooking():
     query = request.form.get('q', '').strip().lower()
-    conn = get_db_connection()
+    ingredients = []
     if query:
-        ingredients = conn.execute(
-            "SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 5",
-            (query + '%',)
-        ).fetchall()
-    else:
-        ingredients = []
-    conn.close()
+        conn = get_db_connection()
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        conn.close()
+
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+
+        conn = get_db_connection()
+        for name, score in matches:
+            if score > 50:
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[name],)).fetchone()
+                ingredients.append(ingredient)
+        conn.close()
+
     return render_template('_search_results_for_cooking.html', ingredients=ingredients)
 
 @app.route('/add_ingredient_to_cooking_session', methods=['POST'])

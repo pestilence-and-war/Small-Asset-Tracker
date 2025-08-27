@@ -1,2 +1,4 @@
 Flask
 waitress
+thefuzz
+python-Levenshtein

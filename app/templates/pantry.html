@@ -49,6 +49,15 @@
 
         <hr>
 
+        <h2>Batch Add Ingredients</h2>
+        <form id="batch-add-form" hx-post="/batch_add_ingredients" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="this.reset()">
+            <textarea name="ingredients_list" placeholder="Enter a comma-separated list of ingredients (e.g., carrots, onions, celery)" rows="3"></textarea>
+            <button type="submit">Batch Add</button>
+        </form>
+        <div class="small-text">This will add new ingredients with a quantity of 0. You can edit the details later.</div>
+
+        <hr>
+
         <!-- Pantry List -->
         <h2>My Pantry</h2>
         <div id="ingredient-list-container">
