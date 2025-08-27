@@ -49,6 +49,18 @@
             document.getElementById(modalId).style.display = 'none';
         }
 
+        function openModalAndTab(tabName) {
+            openModal('converter-modal');
+
+            // Programmatically click the correct tab button
+            const tabButtons = document.querySelectorAll('.tablinks');
+            const targetButton = Array.from(tabButtons).find(btn => btn.textContent.includes(tabName));
+
+            if (targetButton) {
+                targetButton.click();
+            }
+        }
+
         // Close modal if user clicks outside of it
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
