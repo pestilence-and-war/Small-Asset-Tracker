@@ -1,75 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cooking: {{ meal.name }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>Cooking: {{ meal.name }} ({{ portion }}x portion)</h1>
+<div class="container">
+    <h1>Cooking: {{ meal.name }} ({{ portion }}x portion)</h1>
 
-        {% if missing_conversions %}
-        <div class="warning">
-            <h4>Missing Conversions</h4>
-            <p>Could not calculate the required amount for the following ingredients because a conversion is missing:</p>
-            <ul>
-                {% for item in missing_conversions %}
-                <li>{{ item.name }} (from {{ item.unit }} to {{ item.base_unit }})</li>
-                {% endfor %}
-            </ul>
-            <p>Please add these ingredients to your pantry with the specified units to teach the app the conversion.</p>
-        </div>
-        {% endif %}
-
-        <form id="cooking-form" hx-post="/update_pantry" hx-target="#pantry-update-status" hx-swap="innerHTML">
-            <input type="hidden" name="meal_id" value="{{ meal.id }}">
-            <input type="hidden" name="portion" value="{{ portion }}">
-
-            <h3>Required Ingredients</h3>
-            <ul class="recipe-checklist">
-                {% for item in recipe_items %}
-                <li>
-                    <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity_base }}">
-                    <span class="ingredient-name">{{ item.ingredient.name }}</span>
-                    -
-                    <span class="quantity-required">{{ item.display_quantity_required | format_fraction }} {{ item.ingredient.display_unit }} required</span>
-
-                    {% if item.in_stock %}
-                        <span class="status-tag in-stock">✅ In Stock ({{ item.display_quantity_pantry | format_fraction }} {{ item.ingredient.display_unit }})</span>
-                    {% elif item.pantry_quantity_base > 0 %}
-                        <span class="status-tag low-stock">⚠️ Low Stock ({{ item.display_quantity_pantry | format_fraction }} {{ item.ingredient.display_unit }})</span>
-                    {% else %}
-                        <span class="status-tag out-of-stock">❌ Out of Stock</span>
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-
-            <hr>
-
-            <!-- On-the-fly additions -->
-            <div id="side-item-adder">
-                <h4>Add side items or extra ingredients?</h4>
-                <div class="search-container">
-                    <input type="search" name="q" placeholder="Search for an ingredient to add..."
-                           hx-post="/search_ingredients_for_cooking"
-                           hx-trigger="keyup changed delay:500ms, search"
-                           hx-target="#search-results-for-cooking"
-                           hx-swap="innerHTML">
-                    <div id="search-results-for-cooking"></div>
-                </div>
-            </div>
-
-            <hr>
-
-            <button type="submit" class="button-primary">Finish & Update Pantry</button>
-            <a href="/" class="button">Cancel</a>
-        </form>
-
-        <div id="pantry-update-status" class="update-status"></div>
+    {% if missing_conversions %}
+    <div class="warning">
+        <h4>Missing Conversions</h4>
+        <p>Could not calculate the required amount for the following ingredients because a conversion is missing:</p>
+        <ul>
+            {% for item in missing_conversions %}
+            <li>{{ item.name }} (from {{ item.unit }} to {{ item.base_unit }})</li>
+            {% endfor %}
+        </ul>
+        <p>Please add these ingredients to your pantry with the specified units to teach the app the conversion.</p>
     </div>
-</body>
-</html>
+    {% endif %}
+
+    <form id="cooking-form" hx-post="/update_pantry" hx-target="#pantry-update-status" hx-swap="innerHTML">
+        <input type="hidden" name="meal_id" value="{{ meal.id }}">
+        <input type="hidden" name="portion" value="{{ portion }}">
+
+        <h3>Required Ingredients</h3>
+        <ul class="recipe-checklist">
+            {% for item in recipe_items %}
+            <li>
+                <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity_base }}">
+                <span class="ingredient-name">{{ item.ingredient.name }}</span>
+                -
+                <span class="quantity-required">{{ item.display_quantity_required | format_fraction }} {{ item.ingredient.display_unit }} required</span>
+
+                {% if item.in_stock %}
+                    <span class="status-tag in-stock">✅ In Stock ({{ item.display_quantity_pantry | format_fraction }} {{ item.ingredient.display_unit }})</span>
+                {% elif item.pantry_quantity_base > 0 %}
+                    <span class="status-tag low-stock">⚠️ Low Stock ({{ item.display_quantity_p pantry | format_fraction }} {{ item.ingredient.display_unit }})</span>
+                {% else %}
+                    <span class="status-tag out-of-stock">❌ Out of Stock</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+
+        <hr>
+
+        <!-- On-the-fly additions -->
+        <div id="side-item-adder">
+            <h4>Add side items or extra ingredients?</h4>
+            <div class="search-container">
+                <input type="search" name="q" placeholder="Search for an ingredient to add..."
+                       hx-post="/search_ingredients_for_cooking"
+                       hx-trigger="keyup changed delay:500ms, search"
+                       hx-target="#search-results-for-cooking"
+                       hx-swap="innerHTML">
+                <div id="search-results-for-cooking"></div>
+            </div>
+        </div>
+
+        <hr>
+
+        <button type="submit" class="button-primary">Finish & Update Pantry</button>
+        <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="button">Cancel</a>
+    </form>
+
+    <div id="pantry-update-status" class="update-status"></div>
+</div>

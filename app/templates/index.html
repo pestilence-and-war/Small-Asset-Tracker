@@ -20,7 +20,11 @@
         </header>
 
         <main id="content">
-            {% include '_home_content.html' %}
+            {% if page_content %}
+                {{ page_content | safe }}
+            {% else %}
+                {% include '_home_content.html' %}
+            {% endif %}
         </main>
     </div>
 
