@@ -96,13 +96,32 @@ def add_ingredient():
         return render_template('_ingredients_list.html', ingredients=ingredients)
 
     conn = get_db_connection()
-    ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
+
+    # --- Fuzzy Matching Start ---
+    all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+    all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+
+    ingredient = None
+    if all_ingredients_map: # Only search if there are ingredients
+        # extractOne returns (match, score)
+        best_match = process.extractOne(ingredient_name, all_ingredients_map.keys())
+
+        # If a good match is found (e.g., score > 85), use that ingredient
+        if best_match and best_match[1] > 85:
+            match_name = best_match[0]
+            ingredient_id = all_ingredients_map[match_name]
+            ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+        else:
+            # No good fuzzy match, check for an exact match before creating a new one
+            ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
+    # If no ingredients exist yet, `ingredient` remains None and we proceed to create one.
+    # --- Fuzzy Matching End ---
 
     # This will be our final response, can be overridden by a prompt
     response_html = ""
 
     if ingredient:
-        # Ingredient exists
+        # Ingredient exists (either by exact or fuzzy match)
         try:
             if needs_conversion_prompt(unit, ingredient['id']):
                 conn.close()
