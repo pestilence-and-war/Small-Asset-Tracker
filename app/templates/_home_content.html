@@ -1,0 +1,33 @@
+<div class="welcome-container">
+    <h2>Welcome to Your Pantry Manager!</h2>
+    <p>This is your central hub for managing ingredients, planning meals, and more.</p>
+    <p><strong>Get started:</strong></p>
+    <ul>
+        <li><a href="/pantry" hx-get="/pantry" hx-target="#content">Go to your Pantry</a> to add or remove ingredients.</li>
+        <li><a href="/recipes" hx-get="/recipes" hx-target="#content">Check out the Recipe Manager</a> to create new meals.</li>
+    </ul>
+</div>
+
+<!-- Cook a Meal Section -->
+<h2>Cook a Meal</h2>
+<form action="/start_cooking_session" method="POST">
+    <select name="meal_id" required>
+        <option value="">Select a meal...</option>
+        {% for meal in meals %}
+            <option value="{{ meal.id }}">{{ meal.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="number" name="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
+    <button type="submit">Start Cooking</button>
+</form>
+
+<hr>
+
+<!-- Pantry Summary -->
+<h2>Pantry Summary</h2>
+<div id="ingredient-list-container">
+    {% with show_edit_buttons=False %}
+        {% include '_ingredients_list.html' %}
+    {% endwith %}
+</div>
+<a href="/pantry" hx-get="/pantry" hx-target="#content" class="button">Edit Pantry</a>

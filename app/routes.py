@@ -75,6 +75,8 @@ def get_all_meals():
 def index():
     ingredients = get_all_ingredients()
     meals = get_all_meals()
+    if 'HX-Request' in request.headers:
+        return render_template('_home_content.html', ingredients=ingredients, meals=meals)
     return render_template('index.html', ingredients=ingredients, meals=meals)
 
 @app.route('/pantry')

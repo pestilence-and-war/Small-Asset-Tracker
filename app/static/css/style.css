@@ -1,236 +1,311 @@
-/* app/static/css/style.css */
+/* General Body Styles */
+:root {
+    --primary-color: #4a90e2;
+    --secondary-color: #50e3c2;
+    --background-color: #f8f9fa;
+    --font-color: #333;
+    --white-color: #fff;
+    --grey-color: #ccc;
+    --light-grey-color: #f1f1f1;
+    --dark-grey-color: #888;
+    --error-color: #d9534f;
+    --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --border-radius: 8px;
+}
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.6;
-    color: #333;
-    max-width: 800px;
+    color: var(--font-color);
+    background-color: var(--background-color);
+    margin: 0;
+    padding: 0;
+    transition: background-color 0.3s;
+}
+
+.container {
+    max-width: 960px;
     margin: 0 auto;
     padding: 20px;
-    background-color: #f4f4f4;
 }
 
-h1, h2 {
-    color: #444;
-}
-
-ul {
-    list-style-type: none;
-    padding: 0;
-}
-
-li {
-    background: #fff;
-    margin-bottom: 8px;
-    padding: 12px;
-    border-radius: 5px;
-    box-shadow: 0 2px 3px rgba(0,0,0,0.05);
+/* Header and Navigation */
+header {
+    background: var(--white-color);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 2rem;
+    box-shadow: var(--box-shadow);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
+header h1 {
+    color: var(--primary-color);
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+nav a, nav button {
+    margin-left: 15px;
+    text-decoration: none;
+    color: var(--primary-color);
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    transition: background-color 0.3s, color 0.3s;
+    border: 1px solid transparent;
+}
+
+nav a:hover, nav button:hover {
+    background-color: var(--primary-color);
+    color: var(--white-color);
+}
+
+nav a.active {
+    background-color: var(--primary-color);
+    color: var(--white-color);
+    font-weight: bold;
+}
+
+/* Main Content */
+main {
+    transition: opacity 0.4s ease-in-out;
+}
+
+h2 {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 10px;
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Forms */
 form {
-    background: #fff;
-    padding: 20px;
-    border-radius: 5px;
+    background: var(--white-color);
+    padding: 25px;
+    border-radius: var(--border-radius);
     margin-bottom: 20px;
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--light-grey-color);
 }
 
-input[type="text"], input[type="number"], select {
-    width: calc(100% - 22px);
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+input[type="text"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--grey-color);
+    border-radius: var(--border-radius);
+    box-sizing: border-box;
+    transition: border-color 0.3s;
 }
 
-button {
-    background-color: #007bff;
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+button, .button {
+    background-color: var(--primary-color);
     color: white;
-    padding: 10px 15px;
+    padding: 12px 18px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--border-radius);
     cursor: pointer;
     width: 100%;
+    text-align: center;
+    transition: background-color 0.3s, transform 0.2s;
+    font-size: 1rem;
+    display: inline-block;
+    text-decoration: none;
 }
 
-button:hover {
-    background-color: #0056b3;
+button:hover, .button:hover {
+    background-color: #357abd;
+    transform: translateY(-2px);
 }
 
-.ingredient-quantity {
-    font-weight: bold;
-    color: #555;
-}
-
-/* Responsive */
-@media (max-width: 600px) {
-    body {
-        padding: 10px;
-    }
-    form, li {
-        padding: 15px;
-    }
-}
-
-#search-results {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.search-result-item {
-    padding: 10px;
-    cursor: pointer;
-}
-
-.search-result-item:hover {
-    background-color: #eee;
-}
-
-.ingredient-quantity {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.quantity-btn {
-    padding: 2px 8px;
-    font-size: 14px;
-    width: auto;
+button.button-secondary {
     background-color: #6c757d;
 }
-
-.quantity-btn:hover {
+button.button-secondary:hover {
     background-color: #5a6268;
 }
 
-/* Modal styles */
+button.button-danger {
+    background-color: var(--error-color);
+}
+button.button-danger:hover {
+    background-color: #c9302c;
+}
+
+/* Lists */
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li.ingredient-item {
+    background: var(--white-color);
+    margin-bottom: 10px;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: box-shadow 0.3s;
+}
+
+li.ingredient-item:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* Search Results */
+#search-results, .search-results {
+    border: 1px solid var(--grey-color);
+    border-radius: var(--border-radius);
+    max-height: 250px;
+    overflow-y: auto;
+    background: var(--white-color);
+}
+
+.search-result-item {
+    padding: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.search-result-item:hover {
+    background-color: var(--light-grey-color);
+}
+
+/* Modal Styles */
 .modal {
-  display: none; /* Hidden by default */
-  position: fixed; /* Stay in place */
-  z-index: 100; /* Sit on top */
-  left: 0;
-  top: 0;
-  width: 100%; /* Full width */
-  height: 100%; /* Full height */
-  overflow: auto; /* Enable scroll if needed */
-  background-color: rgb(0,0,0); /* Fallback color */
-  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    animation: fadeIn 0.3s;
 }
 
 .modal-content {
-  background-color: #fefefe;
-  margin: 10% auto; /* 10% from the top and centered */
-  padding: 0;
-  border: 1px solid #888;
-  width: 80%; /* Could be more or less, depending on screen size */
-  max-width: 600px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+    background-color: var(--background-color);
+    margin: 10% auto;
+    padding: 0;
+    border: none;
+    width: 90%;
+    max-width: 600px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    animation: slideIn 0.4s;
 }
 
 .modal-header {
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    padding: 15px 25px;
+    background-color: var(--primary-color);
+    color: white;
+    border-top-left-radius: var(--border-radius);
+    border-top-right-radius: var(--border-radius);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .modal-body {
-    padding: 20px;
+    padding: 25px;
+}
+
+.modal-footer {
+    padding: 15px 25px;
+    text-align: right;
+    border-top: 1px solid var(--light-grey-color);
 }
 
 .close-modal {
-  color: white;
-  float: right;
-  font-size: 28px;
-  font-weight: bold;
+    color: white;
+    font-size: 32px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.3s;
 }
 
 .close-modal:hover,
 .close-modal:focus {
-  color: #000;
-  text-decoration: none;
-  cursor: pointer;
+    color: var(--light-grey-color);
+    text-decoration: none;
 }
 
-/* Tab container */
-.tab {
-  overflow: hidden;
-  border-bottom: 1px solid #ccc;
-  margin-bottom: 20px;
+/* Welcome Container */
+.welcome-container {
+    background: var(--white-color);
+    padding: 2rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+    margin-bottom: 2rem;
+    box-shadow: var(--box-shadow);
 }
-
-/* Style the buttons inside the tab */
-.tab button {
-  background-color: inherit;
-  float: left;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  padding: 14px 16px;
-  transition: 0.3s;
-  font-size: 17px;
-  border-bottom: 3px solid transparent;
-  width: auto;
-}
-
-/* Change background color of buttons on hover */
-.tab button:hover {
-  background-color: #ddd;
-}
-
-/* Create an active/current tablink class */
-.tab button.active {
-  border-bottom: 3px solid #007bff;
-}
-
-/* Style the tab content */
-.tabcontent {
-  display: none;
-  padding: 6px 12px;
-  border-top: none;
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    align-items: end;
-}
-
-.density-equals {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    padding-bottom: 10px;
-}
-
-.result-container {
+.welcome-container ul {
+    display: inline-block;
+    text-align: left;
     margin-top: 1rem;
-    padding: 1rem;
-    background-color: #f0f0f0;
-    border-radius: 4px;
-    min-height: 50px;
+}
+.welcome-container li {
+    margin-bottom: 0.5rem;
 }
 
-#converter-ingredient-search-results .search-result-item {
-    padding: 8px;
-    cursor: pointer;
-}
-#converter-ingredient-search-results .search-result-item:hover {
-    background-color: #f0f0f0;
+/* Keyframe Animations for Modals */
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
 }
 
-.modal-footer {
-    padding: 10px 20px;
-    text-align: right;
-    border-top: 1px solid #ddd;
+@keyframes slideIn {
+    from {transform: translateY(-50px); opacity: 0;}
+    to {transform: translateY(0); opacity: 1;}
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    nav {
+        margin-top: 15px;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+    }
+    nav a, nav button {
+        margin-left: 0;
+        flex-grow: 1;
+        text-align: center;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 10px;
+    }
+    form, li.ingredient-item {
+        padding: 15px;
+    }
+    header h1 {
+        font-size: 1.5rem;
+    }
 }

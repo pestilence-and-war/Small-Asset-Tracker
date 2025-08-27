@@ -1,19 +1,15 @@
-<!-- The Modal -->
-<div id="unit-converter-modal" class="modal" style="display:none;">
-  <!-- Modal content -->
+<div id="converter-modal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <span class="close-modal" onclick="closeModal()">&times;</span>
       <h2>Unit Converter</h2>
+      <span class="close-modal" onclick="closeModal('converter-modal')">&times;</span>
     </div>
     <div class="modal-body">
-      <!-- Tab links -->
       <div class="tab">
         <button class="tablinks active" onclick="openTab(event, 'Converter')">Converter</button>
         <button class="tablinks" onclick="openTab(event, 'Density')">Density Calculator</button>
       </div>
 
-      <!-- Tab content -->
       <div id="Converter" class="tabcontent" style="display:block;">
         <h3>General Unit Converter</h3>
         <p>Convert between any two units for an ingredient.</p>
@@ -27,7 +23,7 @@
                 <input id="converter-ingredient" type="search" name="ingredient_name" placeholder="e.g., flour"
                        hx-post="/search_for_converter" hx-trigger="keyup changed delay:500ms"
                        hx-target="#converter-ingredient-search-results" hx-swap="innerHTML">
-                <div id="converter-ingredient-search-results"></div>
+                <div id="converter-ingredient-search-results" class="search-results"></div>
                 <input type="hidden" name="ingredient_id" id="converter-ingredient-id">
             </div>
             <div class="form-group">
@@ -81,9 +77,7 @@
           </div>
           <button type="submit">Convert</button>
         </form>
-        <div id="converter-result-container" class="result-container">
-          <!-- Result will be loaded here -->
-        </div>
+        <div id="converter-result-container" class="result-container"></div>
       </div>
 
       <div id="Density" class="tabcontent">
@@ -117,43 +111,13 @@
           </div>
           <button type="submit">Calculate Density</button>
         </form>
-        <div id="density-result-container" class="result-container">
-          <!-- Result will be loaded here -->
-        </div>
+        <div id="density-result-container" class="result-container"></div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-function openModal() {
-  document.getElementById('unit-converter-modal').style.display = 'block';
-}
-
-function openModalAndTab(tabName) {
-    openModal();
-    // Use a small timeout to ensure the modal is visible before clicking the tab
-    setTimeout(() => {
-        // Find the button that controls the target tab and click it
-        const tabButton = Array.from(document.querySelectorAll('.tablinks')).find(btn => btn.textContent.trim() === tabName);
-        if (tabButton) {
-            tabButton.click();
-        }
-    }, 50);
-}
-
-function closeModal() {
-  document.getElementById('unit-converter-modal').style.display = 'none';
-}
-
-// Close the modal if the user clicks outside of the modal content
-window.onclick = function(event) {
-  const modal = document.getElementById('unit-converter-modal');
-  if (event.target == modal) {
-    modal.style.display = "none";
-  }
-}
-
 function openTab(evt, tabName) {
   let i, tabcontent, tablinks;
   tabcontent = document.getElementsByClassName("tabcontent");
@@ -171,7 +135,6 @@ function openTab(evt, tabName) {
 function selectConverterIngredient(ingredientId, ingredientName) {
     document.getElementById('converter-ingredient-id').value = ingredientId;
     document.getElementById('converter-ingredient').value = ingredientName;
-    // Clear the search results
     document.getElementById('converter-ingredient-search-results').innerHTML = "";
 }
 
@@ -179,9 +142,9 @@ function useDensity(density) {
     const densityInput = document.querySelector('#density');
     if (densityInput) {
         densityInput.value = density;
-        closeModal();
+        closeModal('converter-modal');
     } else {
-        alert('Could not find the density input field. Please make sure you have triggered the "New Ingredient" form first.');
+        alert('Could not find the density input field on the main page.');
     }
 }
 </script>

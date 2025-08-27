@@ -7,44 +7,54 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
-<body>
+<body hx-boost="true">
     <div class="container">
         <header>
             <h1>Pantry Manager</h1>
             <nav>
-                <a href="/" class="active">Home</a>
-                <a href="/pantry">Edit Pantry</a>
-                <a href="/recipes">Recipe Manager</a>
-                <button type="button" onclick="openModal()" class="button-secondary">Unit Converter</button>
+                <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="active">Home</a>
+                <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML">Pantry</a>
+                <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML">Recipes</a>
+                <button type="button" onclick="openModal('converter-modal')" class="button-secondary">Unit Converter</button>
             </nav>
         </header>
 
-        <!-- Cook a Meal Section -->
-        <h2>Cook a Meal</h2>
-        <form action="/start_cooking_session" method="POST" target="_blank">
-            <select name="meal_id" required>
-                <option value="">Select a meal...</option>
-                {% for meal in meals %}
-                    <option value="{{ meal.id }}">{{ meal.name }}</option>
-                {% endfor %}
-            </select>
-            <input type="number" name="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
-            <button type="submit">Start Cooking</button>
-        </form>
-
-        <hr>
-
-        <!-- Pantry Summary -->
-        <h2>Pantry Summary</h2>
-        <div id="ingredient-list-container">
-            {% with show_edit_buttons=False %}
-                {% include '_ingredients_list.html' %}
-            {% endwith %}
-        </div>
-        <a href="/pantry" class="button">Edit Pantry</a>
-
+        <main id="content">
+            {% include '_home_content.html' %}
+        </main>
     </div>
 
     {% include '_converter_modal.html' %}
+
+    <script>
+        document.addEventListener('htmx:after-request', function(event) {
+            // Remove 'active' class from all nav links
+            document.querySelectorAll('nav a').forEach(function(link) {
+                link.classList.remove('active');
+            });
+
+            // Add 'active' class to the clicked link
+            let targetUrl = event.detail.requestConfig.path;
+            let activeLink = document.querySelector('nav a[href="' + targetUrl + '"]');
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+        });
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Close modal if user clicks outside of it
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>
