@@ -353,7 +353,9 @@ def start_cooking_session():
 
     conn.close()
 
-    return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions)
+    if 'HX-Request' in request.headers:
+        return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions)
+    return render_template('index.html', page_content=render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions))
 
 def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
     # This is a bit redundant with get_all_ingredients, but it's for a single item.
@@ -780,7 +782,9 @@ def recipe_editor(meal_id):
     meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
     conn.close()
     meal_ingredients = get_meal_ingredients(meal_id)
-    return render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients)
+    if 'HX-Request' in request.headers:
+        return render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients)
+    return render_template('index.html', page_content=render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients))
 
 @app.route('/add_ingredient_to_meal/<int:meal_id>', methods=['POST'])
 def add_ingredient_to_meal(meal_id):
@@ -945,7 +949,9 @@ def update_pantry():
                     "UPDATE ingredients SET quantity = quantity - ? WHERE id = ?",
                     (float(quantity_to_deduct), int(ingredient_id))
                 )
-        return "<h4>Pantry updated successfully!</h4><p><a href='/'>Back to main page.</a></p>"
+        response = make_response()
+        response.headers['HX-Redirect'] = '/'
+        return response
     except Exception as e:
         print(f"Error updating pantry: {e}")
         return f"<h4>Error: {e}</h4><p>Could not update pantry.</p>"
