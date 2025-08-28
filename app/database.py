@@ -15,6 +15,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS ingredients (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL DEFAULT 'other',
             quantity REAL NOT NULL DEFAULT 0,
             base_unit TEXT, -- e.g., 'g', 'ml', 'unit'
             base_unit_type TEXT, -- e.g., 'mass', 'volume', 'count'
@@ -68,6 +69,13 @@ def init_db():
             UNIQUE(ingredient_id, view_name)
         )
     ''')
+    # Add category column to ingredients if it doesn't exist
+    try:
+        conn.execute('SELECT category FROM ingredients LIMIT 1').fetchall()
+    except sqlite3.OperationalError:
+        print("Adding 'category' column to 'ingredients' table.")
+        conn.execute('ALTER TABLE ingredients ADD COLUMN category TEXT NOT NULL DEFAULT "other"')
+
     conn.commit()
     conn.close()
 

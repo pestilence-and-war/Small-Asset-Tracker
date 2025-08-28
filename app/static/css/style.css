@@ -342,3 +342,88 @@ li.ingredient-item:hover {
         font-size: 1.5rem;
     }
 }
+
+/* Pantry Grid Layout */
+.pantry-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 2rem;
+}
+
+.pantry-category-card {
+    background: var(--white-color);
+    border: 1px solid var(--light-grey-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--box-shadow);
+    display: flex;
+    flex-direction: column;
+}
+
+.category-title {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--primary-color);
+    text-transform: capitalize;
+    font-size: 1.2rem;
+    color: var(--primary-color);
+}
+
+.pantry-category-card .ingredient-list {
+    flex-grow: 1;
+}
+
+/* Individual ingredient item adjustments */
+.ingredient-display {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.ingredient-display > span:first-child {
+    flex-grow: 1;
+}
+
+.unit-selector-form {
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+}
+
+.unit-selector-form select {
+    margin-bottom: 0;
+}
+
+.edit-btn {
+    padding: 6px 12px;
+}
+
+/* Meal Filter Layout */
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.filter-category-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-category-group label {
+    font-weight: bold;
+    margin-bottom: 8px;
+    text-transform: capitalize;
+}
+
+.filter-category-group select[multiple] {
+    height: 150px;
+    padding: 10px;
+}

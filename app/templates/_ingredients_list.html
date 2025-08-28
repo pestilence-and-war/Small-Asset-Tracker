@@ -1,7 +1,14 @@
-<ul id="ingredient-list">
-    {% for ingredient in ingredients %}
-        {% with ingredient=ingredient, show_edit_buttons=show_edit_buttons %}
+<div class="pantry-grid">
+    {% for category, ingredients_in_category in ingredients.items() %}
+    <div class="pantry-category-card">
+        <h3 class="category-title">{{ category }}</h3>
+        <ul id="ingredient-list-{{ category }}" class="ingredient-list">
+            {% for ingredient in ingredients_in_category %}
+            {% with ingredient=ingredient, show_edit_buttons=show_edit_buttons %}
             {% include '_ingredient_item.html' %}
-        {% endwith %}
+            {% endwith %}
+            {% endfor %}
+        </ul>
+    </div>
     {% endfor %}
-</ul>
+</div>

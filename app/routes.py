@@ -14,20 +14,23 @@ def get_all_units():
     volume_units = ['ml', 'l', 'cc', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint']
     return mass_units, volume_units
 
+def get_all_categories():
+    return ['fresh produce', 'frozen foods', 'meats', 'canned goods', 'dry goods', 'spices', 'other']
+
 def get_all_ingredients(view_name='pantry'):
     conn = get_db_connection()
     # Join with ingredient_view_units to get the preferred display unit
     query = f"""
         SELECT
-            i.id, i.name, i.quantity, i.base_unit, i.base_unit_type,
+            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
-        ORDER BY i.name
+        ORDER BY i.category, i.name
     """
     ingredients_raw = conn.execute(query, (view_name,)).fetchall()
 
-    processed_ingredients = []
+    ingredients_by_category = {}
     mass_units, volume_units = get_all_units()
 
     for item in ingredients_raw:
@@ -59,11 +62,14 @@ def get_all_ingredients(view_name='pantry'):
             item_dict['display_unit'] = item_dict['base_unit']
             item_dict['conversion_error'] = True
 
+        category = item_dict['category']
+        if category not in ingredients_by_category:
+            ingredients_by_category[category] = []
+        ingredients_by_category[category].append(item_dict)
 
-        processed_ingredients.append(item_dict)
 
     conn.close()
-    return processed_ingredients
+    return ingredients_by_category
 
 def get_all_meals():
     conn = get_db_connection()
@@ -363,7 +369,7 @@ def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
     conn = get_db_connection()
     query = f"""
         SELECT
-            i.id, i.name, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml,
+            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
@@ -449,7 +455,8 @@ def get_ingredient(ing_id):
 def edit_ingredient_form(ing_id):
     view_name = request.args.get('view_name', 'pantry')
     ingredient = get_ingredient_by_id(ing_id, view_name, for_editing=True)
-    return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name)
+    categories = get_all_categories()
+    return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name, categories=categories)
 
 @app.route('/edit_ingredient/<int:ing_id>', methods=['POST'])
 def edit_ingredient(ing_id):
@@ -457,6 +464,7 @@ def edit_ingredient(ing_id):
     new_name = request.form.get('name', '').strip().lower()
     new_quantity_str = request.form.get('quantity', '0')
     new_unit = request.form.get('unit')
+    new_category = request.form.get('category')
 
     if not new_name or not new_unit:
         ingredient = get_ingredient_by_id(ing_id, view_name)
@@ -481,12 +489,12 @@ def edit_ingredient(ing_id):
                 if new_unit_type != current_base_unit_type:
                     quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, conn=conn)
                     conn.execute(
-                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
-                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ? WHERE id = ?",
+                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, ing_id)
                     )
                 else:
                     quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
-                    conn.execute("UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?", (new_name, quantity_in_base, ing_id))
+                    conn.execute("UPDATE ingredients SET name = ?, quantity = ?, category = ? WHERE id = ?", (new_name, quantity_in_base, new_category, ing_id))
 
                 conn.execute("""
                     INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
@@ -506,8 +514,8 @@ def edit_ingredient(ing_id):
                 else: # Density exists
                     quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
                     conn.execute(
-                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
-                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ? WHERE id = ?",
+                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, ing_id)
                     )
                     conn.execute("""
                         INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
@@ -595,6 +603,32 @@ def delete_ingredient(ing_id):
         conn.close()
 
     return "" # Return an empty string as the element will be removed from the DOM
+
+@app.route('/filter_meals', methods=['POST'])
+def filter_meals():
+    ingredient_ids = request.form.getlist('ingredient_ids')
+    if not ingredient_ids or 'any' in ingredient_ids:
+        meals = get_all_meals()
+        return render_template('_meals_list.html', meals=meals)
+
+    conn = get_db_connection()
+    
+    placeholders = ','.join('?' for _ in ingredient_ids)
+    query = f"""
+        SELECT m.id, m.name
+        FROM meals m
+        JOIN meal_ingredients mi ON m.id = mi.meal_id
+        WHERE mi.ingredient_id IN ({placeholders})
+        GROUP BY m.id, m.name
+        HAVING COUNT(DISTINCT mi.ingredient_id) = ?
+    """
+    
+    params = ingredient_ids + [len(ingredient_ids)]
+    meals = conn.execute(query, params).fetchall()
+    
+    conn.close()
+    
+    return render_template('_meals_list.html', meals=meals)
 
 @app.route('/batch_add_ingredients', methods=['POST'])
 def batch_add_ingredients():
@@ -963,7 +997,8 @@ def update_pantry():
 @app.route('/recipes')
 def recipes():
     meals = get_all_meals()
-    return render_template('recipe_manager.html', meals=meals)
+    ingredients_by_category = get_all_ingredients()
+    return render_template('recipe_manager.html', meals=meals, ingredients_by_category=ingredients_by_category)
 
 @app.route('/add_meal', methods=['POST'])
 def add_meal():
