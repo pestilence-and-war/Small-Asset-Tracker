@@ -4,8 +4,11 @@
         <li>
             <span class="meal-name">{{ meal.name }}</span>
             <div class="meal-actions">
-                <a href="/meal/{{ meal.id }}" class="button">Cook</a>
-                <a href="/recipe/{{ meal.id }}" class="button">Manage</a>
+                <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML" style="display: inline;">
+                    <input type="hidden" name="meal_id" value="{{ meal.id }}">
+                    <button type="submit" class="button">Cook</button>
+                </form>
+                <a href="/recipe/{{ meal.id }}" hx-get="/recipe/{{ meal.id }}" hx-target="#content" hx-swap="innerHTML" class="button">Manage</a>
                 <button hx-delete="/delete_meal/{{ meal.id }}" hx-target="closest li" hx-swap="outerHTML" hx-confirm="Are you sure you want to delete this meal?" class="button-danger">
                     Delete
                 </button>

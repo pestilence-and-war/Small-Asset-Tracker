@@ -900,7 +900,9 @@ def meal_page(meal_id):
     meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
     conn.close()
     meal_ingredients = get_meal_ingredients(meal_id)
-    return render_template('meal.html', meal=meal, meal_ingredients=meal_ingredients)
+    if 'HX-Request' in request.headers:
+        return render_template('meal.html', meal=meal, meal_ingredients=meal_ingredients)
+    return render_template('index.html', page_content=render_template('meal.html', meal=meal, meal_ingredients=meal_ingredients))
 
 @app.route('/search_ingredients_for_cooking', methods=['POST'])
 def search_ingredients_for_cooking():

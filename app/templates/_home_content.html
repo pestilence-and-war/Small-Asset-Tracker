@@ -10,7 +10,7 @@
 
 <!-- Cook a Meal Section -->
 <h2>Cook a Meal</h2>
-<form action="/start_cooking_session" method="POST">
+<form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML">
     <select name="meal_id" required>
         <option value="">Select a meal...</option>
         {% for meal in meals %}
