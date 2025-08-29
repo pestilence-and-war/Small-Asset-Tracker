@@ -15,7 +15,12 @@ def get_all_units():
     return mass_units, volume_units
 
 def get_all_categories():
-    return ['fresh produce', 'frozen foods', 'meats', 'canned goods', 'dry goods', 'spices', 'other']
+    return [
+        'Alcohol', 'Bakery & Bread', 'Baking', 'Beverages', 'Breakfast & Cereal',
+        'Candy', 'Canned Goods', 'Dairy & Eggs', 'Deli', 'Dry Goods',
+        'Fresh Produce', 'Frozen', 'Frozen Foods', 'Meat & Seafood', 'Meats',
+        'Other', 'Pantry', 'Snacks', 'Spices'
+    ]
 
 def get_all_ingredients(view_name='pantry'):
     conn = get_db_connection()
