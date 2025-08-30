@@ -185,26 +185,13 @@ def needs_conversion_prompt(unit, ingredient_id, conn=None):
         current_base_type = ingredient['base_unit_type']
         new_unit_type = get_base_unit_type(unit)
 
-        # If types are different and one is mass and one is volume, we need a conversion
+        # If types are different (mass vs volume), a conversion is needed.
         if current_base_type != new_unit_type and {current_base_type, new_unit_type} == {'mass', 'volume'}:
-            # Before prompting, check if a conversion already exists
-            base_unit = ingredient['base_unit']
-            # Direct
-            res = conn.execute(
-                "SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?",
-                (ingredient_id, unit, base_unit)
-            ).fetchone()
-            if res:
-                return False # Conversion exists
-            # Reverse
-            res = conn.execute(
-                "SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?",
-                (ingredient_id, base_unit, unit)
-            ).fetchone()
-            if res:
-                return False # Conversion exists
-
-            return True # Conversion needed
+            # A prompt is needed only if the density is not already known.
+            if ingredient['density_g_ml'] and ingredient['density_g_ml'] > 0:
+                return False  # Density exists, no prompt needed.
+            else:
+                return True   # No density, prompt is needed.
 
         return False
     finally:
