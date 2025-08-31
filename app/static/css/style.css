@@ -442,3 +442,46 @@ li.ingredient-item:hover {
     height: 150px;
     padding: 10px;
 }
+
+/* Recipe Editor Layout */
+.recipe-editor-layout {
+    display: flex;
+    gap: 20px;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+}
+
+.ingredients-section, .instructions-section {
+    flex: 1;
+    background: var(--white-color);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    display: flex;
+    flex-direction: column;
+    max-height: 600px; /* or a height that suits your design */
+}
+
+.ingredients-section > div, .instructions-section > form {
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.instructions-textarea {
+    width: 100%;
+    height: 100%; /* Fill the container */
+    min-height: 400px; /* Minimum height */
+    border: 1px solid var(--grey-color);
+    border-radius: var(--border-radius);
+    padding: 10px;
+    resize: vertical;
+}
+
+.htmx-indicator {
+    display: none;
+    color: var(--primary-color);
+    margin-top: 10px;
+}
+.htmx-request .htmx-indicator {
+    display: block;
+}

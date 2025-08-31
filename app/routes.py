@@ -842,6 +842,20 @@ def recipe_editor(meal_id):
         return render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients)
     return render_template('index.html', page_content=render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients))
 
+@app.route('/update_instructions/<int:meal_id>', methods=['POST'])
+def update_instructions(meal_id):
+    instructions = request.form.get('instructions')
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("UPDATE meals SET instructions = ? WHERE id = ?", (instructions, meal_id))
+    except Exception as e:
+        print(f"Error updating instructions: {e}")
+        return "Error updating instructions", 500
+    finally:
+        if conn: conn.close()
+    return "", 204
+
 @app.route('/add_ingredient_to_meal/<int:meal_id>', methods=['POST'])
 def add_ingredient_to_meal(meal_id):
     ingredient_name = request.form['q'].strip().lower()

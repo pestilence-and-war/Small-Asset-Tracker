@@ -25,7 +25,8 @@ def init_db():
     conn.execute('''
         CREATE TABLE IF NOT EXISTS meals (
             id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE
+            name TEXT NOT NULL UNIQUE,
+            instructions TEXT
         )
     ''')
     conn.execute('''
@@ -75,6 +76,13 @@ def init_db():
     except sqlite3.OperationalError:
         print("Adding 'category' column to 'ingredients' table.")
         conn.execute('ALTER TABLE ingredients ADD COLUMN category TEXT NOT NULL DEFAULT "other"')
+
+    # Add instructions column to meals if it doesn't exist
+    try:
+        conn.execute('SELECT instructions FROM meals LIMIT 1').fetchall()
+    except sqlite3.OperationalError:
+        print("Adding 'instructions' column to 'meals' table.")
+        conn.execute('ALTER TABLE meals ADD COLUMN instructions TEXT')
 
     conn.commit()
     conn.close()
