@@ -963,7 +963,15 @@ def search_ingredients_for_recipe(meal_id):
 def select_ingredient():
     ingredient_name = request.form['ingredient_name']
     meal_id = request.form['meal_id']
-    return f'<input id="ingredient-search-input" type="search" name="q" value="{ingredient_name}" placeholder="Search for an ingredient to add..." hx-post="/search_ingredients_for_recipe/{meal_id}" hx-trigger="keyup changed delay:500ms, search" hx-target="#search-results-for-recipe" hx-swap="innerHTML">'
+    # The main returned element replaces the search input.
+    # The div with hx-swap-oob will be swapped "out of band", clearing the search results.
+    return f'''<input id="ingredient-search-input" type="search" name="q" value="{ingredient_name}"
+                   placeholder="Search for an ingredient to add..."
+                   hx-post="/search_ingredients_for_recipe/{meal_id}"
+                   hx-trigger="keyup changed delay:500ms, search"
+                   hx-target="#search-results-for-recipe"
+                   hx-swap="innerHTML">
+               <div id="search-results-for-recipe" hx-swap-oob="true"></div>'''
 
 @app.route('/meal/<int:meal_id>')
 def meal_page(meal_id):
