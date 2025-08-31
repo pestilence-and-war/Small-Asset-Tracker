@@ -485,3 +485,25 @@ li.ingredient-item:hover {
 .htmx-request .htmx-indicator {
     display: block;
 }
+
+/* Cooking Mode - Instructions */
+.instructions-section-cooking {
+    background: #fdfdfd;
+    border: 1px solid var(--light-grey-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.instructions-section-cooking h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+}
+
+.instructions-text {
+    white-space: pre-wrap; /* This will respect newlines and wrap text */
+    line-height: 1.7;
+    color: #555;
+    padding-left: 10px;
+    border-left: 3px solid var(--secondary-color);
+}

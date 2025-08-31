@@ -1,3 +1,4 @@
+import time
 from flask import render_template, request, make_response, jsonify
 from app import app
 from app.database import get_db_connection

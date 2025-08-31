@@ -31,9 +31,26 @@
         <!-- Right Column: Instructions -->
         <div class="instructions-section">
             <h2>Instructions</h2>
-            <form hx-post="/update_instructions/{{ meal.id }}" hx-trigger="keyup changed delay:500ms" hx-swap="none">
-                <textarea name="instructions" class="instructions-textarea" placeholder="Enter recipe instructions here...">{{ meal.instructions or '' }}</textarea>
-                <div class="htmx-indicator">Saving...</div>
+            <form>
+                <textarea name="instructions"
+                          class="instructions-textarea"
+                          placeholder="Enter recipe instructions here..."
+                          hx-post="/update_instructions/{{ meal.id }}"
+                          hx-trigger="keyup changed delay:500ms"
+                          hx-swap="none"
+                          hx-indicator="#saving-indicator">{{ meal.instructions or '' }}</textarea>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                    <span id="saving-indicator" class="htmx-indicator">
+                        <i>Saving...</i>
+                    </span>
+                    <button hx-post="/update_instructions/{{ meal.id }}"
+                            hx-swap="none"
+                            hx-include="[name='instructions']"
+                            class="button">
+                        Save Instructions
+                    </button>
+                </div>
             </form>
         </div>
     </div>
