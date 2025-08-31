@@ -1,35 +1,43 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recipe Manager</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>Recipe Manager</h1>
+<h1>Recipe Manager</h1>
 
-        <!-- Add New Meal Form -->
-        <div id="add-meal-container">
-            <h2>Add New Meal</h2>
-            <form hx-post="/add_meal" hx-target="#meals-list-container" hx-swap="innerHTML">
-                <input type="text" name="meal_name" placeholder="New meal name..." required>
-                <button type="submit" class="button-primary">Add Meal</button>
-            </form>
-        </div>
+<!-- Add New Meal Form -->
+<div id="add-meal-container">
+    <h2>Add New Meal</h2>
+    <form hx-post="/add_meal" hx-target="#meals-list-container" hx-swap="innerHTML">
+        <input type="text" name="meal_name" placeholder="New meal name..." required>
+        <button type="submit" class="button-primary">Add Meal</button>
+    </form>
+</div>
 
-        <hr>
+<hr>
 
-        <!-- List of Meals -->
-        <div id="meals-list-container">
-            {% include '_meals_list.html' %}
-        </div>
-
-        <div id="user-prompts"></div>
-
-        <p><a href="/" class="button">Back to Main Page</a></p>
+<!-- Filter Meals Form -->
+<h2>Filter Meals by Ingredients</h2>
+<form hx-post="/filter_meals" hx-target="#meals-list-container" hx-swap="innerHTML">
+    <div class="filter-grid">
+        {% for category, ingredients_in_category in ingredients_by_category.items() %}
+            <div class="filter-category-group">
+                <label for="filter-{{ category }}">{{ category }}</label>
+                <select name="ingredient_ids" id="filter-{{ category }}" multiple>
+                    {% for ingredient in ingredients_in_category %}
+                        <option value="{{ ingredient.id }}">{{ ingredient.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endfor %}
     </div>
-</body>
-</html>
+    <div class="form-buttons">
+        <button type="submit" class="button-primary">Filter Meals</button>
+        <button type="button" hx-post="/filter_meals" hx-target="#meals-list-container" hx-swap="innerHTML" hx-include="[value='any']" name="ingredient_ids" value="any" class="button-secondary">Reset Filters</button>
+    </div>
+</form>
+
+<hr>
+
+<!-- List of Meals -->
+<h2>Available Meals</h2>
+<div id="meals-list-container">
+    {% include '_meals_list.html' %}
+</div>
+
+<div id="user-prompts"></div>
