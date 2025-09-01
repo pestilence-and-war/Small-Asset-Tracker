@@ -40,10 +40,10 @@ def import_recipe_from_text(text: str) -> dict:
 
     try:
         # It's a good practice to check if the model is available.
-        # For this implementation, we assume 'llava' is running.
+        # For this implementation, we assume 'gemma3:4b' is running.
         # A more robust solution might involve checking available models.
         response = ollama.chat(
-            model='llava',
+            model='gemma3:4b',
             messages=[{'role': 'user', 'content': prompt}],
             options={'temperature': 0.1} # Lower temperature for more deterministic output
         )
