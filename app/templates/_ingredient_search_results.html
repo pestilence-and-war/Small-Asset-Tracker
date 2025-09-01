@@ -1,0 +1,13 @@
+{% for ingredient in ingredients %}
+    {% if ingredient.is_new %}
+        <div class="search-result-item"
+             onclick="document.querySelector('input[name=q]').value = '{{ ingredient.name }}'; document.querySelector('#search-results').innerHTML = ''">
+            Add new ingredient: "{{ ingredient.name }}"
+        </div>
+    {% else %}
+        <div class="search-result-item"
+             onclick="document.querySelector('input[name=q]').value = '{{ ingredient.name }}'; document.querySelector('#search-results').innerHTML = ''">
+            {{ ingredient.name }}
+        </div>
+    {% endif %}
+{% endfor %}

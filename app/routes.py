@@ -1,3 +1,4 @@
+import time
 from flask import render_template, request, make_response, jsonify
 from app import app
 from app.database import get_db_connection
@@ -97,7 +98,7 @@ def pantry():
 
 @app.route('/add_ingredient', methods=['POST'])
 def add_ingredient():
-    ingredient_name = request.form['ingredient_name'].strip().lower()
+    ingredient_name = request.form['q'].strip().lower()
     try:
         quantity = parse_quantity(request.form.get('quantity', '0'))
     except (ValueError, TypeError):
@@ -109,43 +110,30 @@ def add_ingredient():
 
     conn = get_db_connection()
     try:
-        # --- Fuzzy Matching Start ---
-        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
-        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-
-        ingredient = None
-        if all_ingredients_map:
-            best_match = process.extractOne(ingredient_name, all_ingredients_map.keys())
-            if best_match and best_match[1] > 85:
-                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[best_match[0]],)).fetchone()
-            else:
-                ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
-        # --- Fuzzy Matching End ---
+        # Check for an exact match for an existing ingredient.
+        ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (ingredient_name,)).fetchone()
 
         if ingredient:
-            # Ingredient exists
+            # Ingredient exists, update its quantity.
             if needs_conversion_prompt(unit, ingredient['id'], conn=conn):
-                # This path doesn't modify the DB, so we can just return the prompt.
-                # The form in the prompt will post to a different route.
                 return make_response(get_conversion_prompt_html(ingredient['id'], quantity, unit, 0))
 
             converted_quantity, _, _ = convert_to_base(quantity, unit, ingredient['id'], conn=conn)
             conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (converted_quantity, ingredient['id']))
         else:
-            # New ingredient
+            # New ingredient. Add it without prompting for density.
             base_unit_type = get_base_unit_type(unit)
             if not base_unit_type:
-                raise ValueError(f"Cannot determine type for unit '{unit}'.")
+                # If the unit is unknown, treat it as a 'count' type.
+                base_unit_type = 'count'
+                base_unit = 'unit'
+                # The quantity is as-is since the unit is just 'unit'.
+                converted_quantity = quantity
+            else:
+                 base_unit = get_base_unit(base_unit_type)
+                 # For a new ingredient, there's no ingredient_id yet.
+                 converted_quantity, _, _ = convert_to_base(quantity, unit, conn=conn)
 
-            if base_unit_type in ['mass', 'volume']:
-                # This path also doesn't modify the DB. It returns a prompt to another route.
-                response = make_response(get_new_ingredient_conversion_prompt_html(ingredient_name, quantity, unit))
-                response.headers['HX-Retarget'] = '#user-prompts'
-                response.headers['HX-Reswap'] = 'innerHTML'
-                return response
-
-            base_unit = get_base_unit(base_unit_type)
-            converted_quantity, _, _ = convert_to_base(quantity, unit, conn=conn)
             conn.execute(
                 'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)',
                 (ingredient_name, converted_quantity, base_unit, base_unit_type)
@@ -155,10 +143,7 @@ def add_ingredient():
 
     except (ValueError, TypeError) as e:
         print(f"Error in add_ingredient: {e}")
-        # On error, rollback any changes and don't save.
         if conn: conn.rollback()
-        # We can also return an error message to the user here.
-        # For now, just returning the latest ingredient list.
     finally:
         if conn: conn.close()
 
@@ -189,6 +174,39 @@ def search():
         conn.close()
 
     return render_template('_search_results.html', ingredients=ingredients)
+
+@app.route('/search_pantry_ingredients')
+def search_pantry_ingredients():
+    query = request.args.get('q', '').strip().lower()
+    ingredients = []
+    if query:
+        conn = get_db_connection()
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        conn.close()
+
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+
+        conn = get_db_connection()
+
+        # Keep track of names to avoid duplicates
+        found_names = set()
+
+        for name, score in matches:
+            if score > 50 and name not in found_names:
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (all_ingredients_map[name],)).fetchone()
+                # append as dict
+                ingredients.append(dict(ingredient))
+                found_names.add(name)
+
+        # Add an option to create the typed ingredient if it's not in the suggestions
+        if query not in found_names:
+            ingredients.append({'name': query, 'is_new': True})
+
+        conn.close()
+
+    return render_template('_ingredient_search_results.html', ingredients=ingredients, query=query)
+
 
 @app.route('/update_quantity', methods=['POST'])
 def update_quantity():
@@ -825,6 +843,20 @@ def recipe_editor(meal_id):
         return render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients)
     return render_template('index.html', page_content=render_template('recipe_editor.html', meal=meal, meal_ingredients=meal_ingredients))
 
+@app.route('/update_instructions/<int:meal_id>', methods=['POST'])
+def update_instructions(meal_id):
+    instructions = request.form.get('instructions')
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("UPDATE meals SET instructions = ? WHERE id = ?", (instructions, meal_id))
+    except Exception as e:
+        print(f"Error updating instructions: {e}")
+        return "Error updating instructions", 500
+    finally:
+        if conn: conn.close()
+    return "", 204
+
 @app.route('/add_ingredient_to_meal/<int:meal_id>', methods=['POST'])
 def add_ingredient_to_meal(meal_id):
     ingredient_name = request.form['q'].strip().lower()
@@ -931,7 +963,15 @@ def search_ingredients_for_recipe(meal_id):
 def select_ingredient():
     ingredient_name = request.form['ingredient_name']
     meal_id = request.form['meal_id']
-    return f'<input id="ingredient-search-input" type="search" name="q" value="{ingredient_name}" placeholder="Search for an ingredient to add..." hx-post="/search_ingredients_for_recipe/{meal_id}" hx-trigger="keyup changed delay:500ms, search" hx-target="#search-results-for-recipe" hx-swap="innerHTML">'
+    # The main returned element replaces the search input.
+    # The div with hx-swap-oob will be swapped "out of band", clearing the search results.
+    return f'''<input id="ingredient-search-input" type="search" name="q" value="{ingredient_name}"
+                   placeholder="Search for an ingredient to add..."
+                   hx-post="/search_ingredients_for_recipe/{meal_id}"
+                   hx-trigger="keyup changed delay:500ms, search"
+                   hx-target="#search-results-for-recipe"
+                   hx-swap="innerHTML">
+               <div id="search-results-for-recipe" hx-swap-oob="true"></div>'''
 
 @app.route('/meal/<int:meal_id>')
 def meal_page(meal_id):
