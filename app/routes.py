@@ -8,6 +8,7 @@ from app.units import (
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
     convert_units, format_fraction, convert_from_base, parse_quantity
 )
+from app.importer_service import import_recipe_from_text
 
 def get_all_units():
     # These are hardcoded for consistency in the UI
@@ -1038,6 +1039,135 @@ def update_pantry():
         return f"<h4>Error: {e}</h4><p>Could not update pantry.</p>"
     finally:
         if conn: conn.close()
+
+@app.route('/import_recipe_process', methods=['POST'])
+def import_recipe_process():
+    recipe_text = request.form.get('recipe_text', '')
+    if not recipe_text:
+        return "No recipe text provided.", 400
+
+    recipe_data = import_recipe_from_text(recipe_text)
+
+    if not recipe_data:
+        return "Could not parse recipe. Please check the format.", 500
+
+    conn = get_db_connection()
+    all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+    all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+    all_ingredient_names = list(all_ingredients_map.keys())
+
+    for ingredient in recipe_data.get('ingredients', []):
+        # 1. Fuzzy match against existing ingredients
+        ingredient_name = ingredient.get('name', '').lower()
+        if ingredient_name and all_ingredient_names:
+            best_match = process.extractOne(ingredient_name, all_ingredient_names)
+            if best_match and best_match[1] > 80:
+                ingredient['suggestion_id'] = all_ingredients_map[best_match[0]]
+            else:
+                ingredient['suggestion_id'] = None
+        else:
+            ingredient['suggestion_id'] = None
+
+        # 2. Check if a density prompt will be needed if it's a new ingredient
+        ingredient['needs_density_prompt'] = False
+        if not ingredient['suggestion_id']: # It's a potential new ingredient
+            unit = ingredient.get('unit', '').lower()
+            unit_type = get_base_unit_type(unit)
+            if unit_type in ['mass', 'volume']:
+                ingredient['needs_density_prompt'] = True
+
+    # Get a list of all ingredients for the dropdowns
+    all_ingredients_for_dropdown = conn.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
+    conn.close()
+
+    return render_template(
+        'recipe_import_review.html',
+        recipe_data=recipe_data,
+        all_ingredients=all_ingredients_for_dropdown
+    )
+
+@app.route('/save_imported_recipe', methods=['POST'])
+def save_imported_recipe():
+    conn = get_db_connection()
+    try:
+        with conn:
+            # 1. Create the new meal
+            recipe_name = request.form.get('recipe_name')
+            instructions = request.form.get('instructions')
+            if not recipe_name:
+                return "Recipe name is required.", 400
+
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO meals (name, instructions) VALUES (?, ?)", (recipe_name, instructions))
+            meal_id = cursor.lastrowid
+
+            # 2. Process ingredients
+            ingredient_ids = request.form.getlist('ingredient_id')
+            quantities = request.form.getlist('ingredient_quantity')
+            units = request.form.getlist('ingredient_unit')
+
+            for i in range(len(ingredient_ids)):
+                ing_id_val = ingredient_ids[i]
+                quantity_str = quantities[i]
+                unit = units[i].strip().lower()
+
+                try:
+                    quantity = parse_quantity(quantity_str)
+                except ValueError:
+                    continue # Skip invalid quantities
+
+                final_ingredient_id = None
+                if ing_id_val.startswith('_new_'):
+                    new_ing_name = ing_id_val[5:].strip().lower()
+                    existing = conn.execute("SELECT id FROM ingredients WHERE name = ?", (new_ing_name,)).fetchone()
+                    if existing:
+                        final_ingredient_id = existing['id']
+                    else:
+                        # This is a new ingredient, check for density data
+                        density_field_name = f"density_{new_ing_name.replace(' ', '_')}"
+                        density_str = request.form.get(density_field_name)
+
+                        base_unit_type = get_base_unit_type(unit) or 'count'
+                        base_unit = get_base_unit(base_unit_type)
+                        density_to_save = None
+
+                        if density_str:
+                            try:
+                                density_to_save = float(density_str)
+                                # If density is provided, it must be a mass/volume type.
+                                # The base unit will be 'g' for consistency.
+                                base_unit_type = 'mass'
+                                base_unit = 'g'
+                            except (ValueError, TypeError):
+                                density_to_save = None # Ignore invalid density values
+
+                        cursor.execute(
+                            "INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, density_g_ml) VALUES (?, ?, ?, ?, ?)",
+                            (new_ing_name, 0, base_unit, base_unit_type, density_to_save)
+                        )
+                        final_ingredient_id = cursor.lastrowid
+                else:
+                    final_ingredient_id = int(ing_id_val)
+
+                # 3. Add to meal_ingredients
+                if final_ingredient_id:
+                    conn.execute(
+                        "INSERT INTO meal_ingredients (meal_id, ingredient_id, quantity, unit) VALUES (?, ?, ?, ?)",
+                        (meal_id, final_ingredient_id, quantity, unit)
+                    )
+
+        # Redirect to the new recipe's editor page
+        response = make_response()
+        response.headers['HX-Redirect'] = f'/recipe/{meal_id}'
+        return response
+
+    except Exception as e:
+        print(f"Error saving imported recipe: {e}")
+        return "Error saving recipe.", 500
+    finally:
+        if conn:
+            conn.close()
+
 
 @app.route('/recipes')
 def recipes():

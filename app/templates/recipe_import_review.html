@@ -1,0 +1,68 @@
+<div class="container">
+    <h1>Review Imported Recipe</h1>
+    <p>Please review the extracted recipe details below. You can make corrections before saving.</p>
+
+    <form hx-post="/save_imported_recipe" hx-target="#content" hx-swap="innerHTML">
+        <!-- Recipe Name -->
+        <div class="form-group">
+            <label for="recipe_name">Recipe Name</label>
+            <input type="text" id="recipe_name" name="recipe_name" value="{{ recipe_data.recipe_name }}" required>
+        </div>
+
+        <!-- Instructions -->
+        <div class="form-group">
+            <label for="instructions">Instructions</label>
+            <textarea id="instructions" name="instructions" class="instructions-textarea" rows="15" required>{{ recipe_data.instructions }}</textarea>
+        </div>
+
+        <hr>
+
+        <!-- Ingredients -->
+        <h2>Ingredients</h2>
+        <div id="imported-ingredients-list">
+            {% for ingredient in recipe_data.ingredients %}
+            <div class="ingredient-review-item">
+                <select name="ingredient_id" onchange="toggleDensity(this, 'density-prompt-{{ loop.index }}')">
+                    <option value="_new_{{ ingredient.name }}">(New) {{ ingredient.name }}</option>
+                    <option value="" disabled>--- Existing Ingredients ---</option>
+                    {% for pantry_ing in all_ingredients %}
+                    <option value="{{ pantry_ing.id }}" {% if pantry_ing.id == ingredient.suggestion_id %}selected{% endif %}>
+                        {{ pantry_ing.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="ingredient_quantity" value="{{ ingredient.quantity }}" placeholder="Qty" required>
+                <input type="text" name="ingredient_unit" value="{{ ingredient.unit }}" placeholder="Unit">
+
+                {% if ingredient.needs_density_prompt %}
+                <div id="density-prompt-{{ loop.index }}" class="density-prompt" style="display: {% if not ingredient.suggestion_id %}block{% else %}none{% endif %};">
+                    <input type="number" step="any" name="density_{{ ingredient.name|replace(' ', '_') }}" placeholder="Density (g/ml)">
+                </div>
+                {% endif %}
+
+                <button type="button" onclick="this.parentElement.remove()" class="button-danger">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="form-buttons">
+            <button type="submit" class="button-primary">Save Recipe</button>
+            <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="button">Cancel</a>
+        </div>
+    </form>
+
+    <div id="user-prompts"></div>
+</div>
+
+<script>
+function toggleDensity(selectElement, promptId) {
+    const promptDiv = document.getElementById(promptId);
+    if (promptDiv) {
+        if (selectElement.value.startsWith('_new_')) {
+            promptDiv.style.display = 'block';
+        } else {
+            promptDiv.style.display = 'none';
+        }
+    }
+}
+</script>
