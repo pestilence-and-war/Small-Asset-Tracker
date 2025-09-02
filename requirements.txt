@@ -3,3 +3,6 @@ waitress
 thefuzz
 python-Levenshtein
 ollama
+google-generativeai
+protobuf
+python-dotenv
