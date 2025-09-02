@@ -1,5 +1,10 @@
-import ollama
 import json
+import os
+import threading
+from app.api_clients.google_client import GoogleClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def import_recipe_from_text(text: str) -> dict:
     """
@@ -39,20 +44,35 @@ def import_recipe_from_text(text: str) -> dict:
     """
 
     try:
-        # It's a good practice to check if the model is available.
-        # For this implementation, we assume 'gemma3:4b' is running.
-        # A more robust solution might involve checking available models.
-        response = ollama.chat(
-            model='gemma3:4b',
-            messages=[{'role': 'user', 'content': prompt}],
-            options={'temperature': 0.1} # Lower temperature for more deterministic output
-        )
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            print("Error: GOOGLE_API_KEY not found in environment variables.")
+            return {{}}
 
-        # The response content should be the JSON string.
-        response_text = response['message']['content']
+        client = GoogleClient(api_key=api_key)
+
+        messages = [{{'role': 'user', 'content': prompt}}]
+        config = {{
+            "model": "gemini-1.5-flash",
+            "temperature": 0.1,
+        }}
+        stop_event = threading.Event()
+
+        response_generator = client.send_message_stream_yield(messages, config, stop_event)
+
+        response_text = ""
+        for event, data in response_generator:
+            if event == "chunk":
+                response_text += data
+            elif event == "finish":
+                # The 'finish' event in this implementation contains the full accumulated text
+                response_text = data
+                break
+            elif event == "error":
+                print(f"Error from Google API: {{data}}")
+                return {{}}
 
         # Clean up the response to get only the JSON part.
-        # Models sometimes add markdown backticks around the JSON.
         if response_text.startswith("```json"):
             response_text = response_text[7:]
         if response_text.endswith("```"):
@@ -71,9 +91,9 @@ def import_recipe_from_text(text: str) -> dict:
             return {{}}
 
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON from model response: {e}")
-        print(f"Raw response was: {response['message']['content']}")
+        print(f"Error decoding JSON from model response: {{e}}")
+        print(f"Raw response was: {{response_text}}")
         return {{}}
     except Exception as e:
-        print(f"An unexpected error occurred while calling the Ollama API: {e}")
+        print(f"An unexpected error occurred: {{e}}")
         return {{}}
