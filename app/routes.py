@@ -640,6 +640,8 @@ def _process_recipe_ingredients_for_import(recipe_data, conn):
     all_ingredient_names = list(all_ingredients_map.keys())
 
     for ingredient in recipe_data.get('ingredients', []):
+        if not ingredient:
+            continue
         ingredient_name = ingredient.get('name', '').lower()
         best_match_record = None
 
@@ -656,7 +658,7 @@ def _process_recipe_ingredients_for_import(recipe_data, conn):
 
         # 2. Check for unit conversion conflicts (e.g., recipe says "1 onion" but pantry has onions in "g")
         ingredient['needs_unit_conversion_prompt'] = False
-        recipe_unit = ingredient.get('unit', '').strip().lower()
+        recipe_unit = (ingredient.get('unit') or '').strip().lower()
         # A "unit" recipe item for a pantry item tracked by mass/volume needs a conversion
         if best_match_record and (recipe_unit == 'unit' or not get_base_unit_type(recipe_unit)):
             pantry_base_type = best_match_record['base_unit_type']
