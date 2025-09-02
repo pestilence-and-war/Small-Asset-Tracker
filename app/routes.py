@@ -640,6 +640,8 @@ def _process_recipe_ingredients_for_import(recipe_data, conn):
     all_ingredient_names = list(all_ingredients_map.keys())
 
     for ingredient in recipe_data.get('ingredients', []):
+        if not ingredient:
+            continue
         ingredient_name = ingredient.get('name', '').lower()
         best_match_record = None
 
