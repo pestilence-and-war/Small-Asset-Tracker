@@ -11,14 +11,20 @@ def _parse_recipe_from_llm_response(response_text: str) -> dict:
     Cleans and parses a JSON string from the model's response.
     """
     try:
-        # Clean up the response to get only the JSON part.
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
+        # Find the start and end of the JSON object
+        start_index = response_text.find('{')
+        end_index = response_text.rfind('}')
 
-        response_text = response_text.strip()
-        data = json.loads(response_text)
+        if start_index == -1 or end_index == -1 or end_index < start_index:
+            print("Error: Could not find a valid JSON object in the response.")
+            print(f"Raw response was: {response_text}")
+            return {}
+
+        # Extract the JSON string
+        json_str = response_text[start_index:end_index+1]
+
+        # Parse the JSON
+        data = json.loads(json_str)
 
         # Basic validation
         if "recipe_name" in data and "ingredients" in data and "instructions" in data:
