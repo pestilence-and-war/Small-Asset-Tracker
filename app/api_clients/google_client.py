@@ -6,21 +6,24 @@ from PIL import Image
 class GoogleClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.client = genai.Client(api_key=self.api_key)
+        # Configure the library with your API key
+        genai.configure(api_key=self.api_key)
+        # Initialize the generative model
+        self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     def generate_content(self, contents: list, system_instruction: str = None, temperature: float = 0.1):
-        model = "gemini-1.5-flash"
-
-        config = types.GenerateContentConfig(
+        generation_config = types.GenerationConfig(
             temperature=temperature
         )
 
+        # The system_instruction is now passed as a special part of the contents
         if system_instruction:
-            config.system_instruction = system_instruction
+            full_contents = [system_instruction] + contents
+        else:
+            full_contents = contents
 
-        response = self.client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=config
+        response = self.model.generate_content(
+            full_contents,
+            generation_config=generation_config
         )
         return response.text

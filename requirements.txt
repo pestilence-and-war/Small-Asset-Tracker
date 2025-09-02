@@ -6,3 +6,4 @@ ollama
 google-generativeai
 protobuf
 python-dotenv
+pillow

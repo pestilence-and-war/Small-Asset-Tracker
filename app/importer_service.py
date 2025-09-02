@@ -41,7 +41,10 @@ def import_recipe_from_text(text: str) -> dict:
     prompt = f"""
     You are a recipe parsing assistant. Your task is to extract the recipe name,
     a list of ingredients (with quantity, unit, and name), and the instructions
-    from the provided text.
+    from the provided text. If an ingredient has a qualifier that is not a common spice
+    name (e.g., minced onion), only include the name.
+    If you encounter mixed fractions, include them as-is.
+    The base unit for quantity is "unit" (like when the recipe calls for 1 lemon)
     Return the output as a single, valid JSON object. Do not include any explanatory
     text or markdown formatting before or after the JSON object.
 
