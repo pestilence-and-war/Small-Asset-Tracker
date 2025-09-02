@@ -8,7 +8,9 @@ from app.units import (
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
     convert_units, format_fraction, convert_from_base, parse_quantity
 )
-from app.importer_service import import_recipe_from_text
+import os
+from werkzeug.utils import secure_filename
+from app.importer_service import import_recipe_from_text, import_recipe_from_image
 
 def get_all_units():
     # These are hardcoded for consistency in the UI
@@ -627,6 +629,62 @@ def delete_ingredient(ing_id):
         conn.close()
 
     return "" # Return an empty string as the element will be removed from the DOM
+
+@app.route('/import_recipe_from_image', methods=['POST'])
+def import_recipe_from_image_route():
+    if 'recipe_image' not in request.files:
+        return "No image file provided.", 400
+
+    file = request.files['recipe_image']
+    if file.filename == '':
+        return "No selected file.", 400
+
+    if file:
+        filename = secure_filename(file.filename)
+        # Save to a temporary location
+        upload_folder = os.path.join(app.root_path, 'static', 'uploads')
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
+
+        image_path = os.path.join(upload_folder, filename)
+        file.save(image_path)
+
+        recipe_data = import_recipe_from_image(image_path)
+
+        if not recipe_data:
+            return "Could not parse recipe from image.", 500
+
+        conn = get_db_connection()
+        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
+        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
+        all_ingredient_names = list(all_ingredients_map.keys())
+
+        for ingredient in recipe_data.get('ingredients', []):
+            ingredient_name = ingredient.get('name', '').lower()
+            if ingredient_name and all_ingredient_names:
+                best_match = process.extractOne(ingredient_name, all_ingredient_names)
+                if best_match and best_match[1] > 80:
+                    ingredient['suggestion_id'] = all_ingredients_map[best_match[0]]
+                else:
+                    ingredient['suggestion_id'] = None
+            else:
+                ingredient['suggestion_id'] = None
+
+            ingredient['needs_density_prompt'] = False
+            if not ingredient['suggestion_id']:
+                unit = ingredient.get('unit', '').lower()
+                unit_type = get_base_unit_type(unit)
+                if unit_type in ['mass', 'volume']:
+                    ingredient['needs_density_prompt'] = True
+
+        all_ingredients_for_dropdown = conn.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
+        conn.close()
+
+        return render_template(
+            'recipe_import_review.html',
+            recipe_data=recipe_data,
+            all_ingredients=all_ingredients_for_dropdown
+        )
 
 @app.route('/filter_meals', methods=['POST'])
 def filter_meals():
