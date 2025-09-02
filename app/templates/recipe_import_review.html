@@ -22,7 +22,7 @@
         <div id="imported-ingredients-list">
             {% for ingredient in recipe_data.ingredients %}
             <div class="ingredient-review-item">
-                <select name="ingredient_id" onchange="toggleDensity(this, 'density-prompt-{{ loop.index }}')">
+                <select name="ingredient_id" onchange="togglePrompts(this, 'density-prompt-{{ loop.index }}', 'unit-conversion-prompt-{{ loop.index }}')">
                     <option value="_new_{{ ingredient.name }}">(New) {{ ingredient.name }}</option>
                     <option value="" disabled>--- Existing Ingredients ---</option>
                     {% for pantry_ing in all_ingredients %}
@@ -37,6 +37,16 @@
                 {% if ingredient.needs_density_prompt %}
                 <div id="density-prompt-{{ loop.index }}" class="density-prompt" style="display: {% if not ingredient.suggestion_id %}block{% else %}none{% endif %};">
                     <input type="number" step="any" name="density_{{ ingredient.name|replace(' ', '_') }}" placeholder="Density (g/ml)">
+                </div>
+                {% endif %}
+
+                {% if ingredient.needs_unit_conversion_prompt %}
+                <div id="unit-conversion-prompt-{{ loop.index }}" class="unit-conversion-prompt" style="display: {% if ingredient.suggestion_id %}block{% else %}none{% endif %};">
+                    <span>1 {{ ingredient.unit }} =&nbsp;</span>
+                    <input type="number" step="any" name="unit_conversion_factor_{{ ingredient.suggestion_id }}" placeholder="e.g., 150" style="width: 80px;">
+                    <span>&nbsp;{{ ingredient.pantry_base_unit }}</span>
+                    <input type="hidden" name="unit_conversion_from_{{ ingredient.suggestion_id }}" value="{{ ingredient.unit }}">
+                    <input type="hidden" name="unit_conversion_to_{{ ingredient.suggestion_id }}" value="{{ ingredient.pantry_base_unit }}">
                 </div>
                 {% endif %}
 
@@ -55,14 +65,18 @@
 </div>
 
 <script>
-function toggleDensity(selectElement, promptId) {
-    const promptDiv = document.getElementById(promptId);
-    if (promptDiv) {
-        if (selectElement.value.startsWith('_new_')) {
-            promptDiv.style.display = 'block';
-        } else {
-            promptDiv.style.display = 'none';
-        }
+function togglePrompts(selectElement, densityPromptId, unitConversionPromptId) {
+    const densityPrompt = document.getElementById(densityPromptId);
+    const unitConversionPrompt = document.getElementById(unitConversionPromptId);
+    const isNew = selectElement.value.startsWith('_new_');
+
+    if (densityPrompt) {
+        densityPrompt.style.display = isNew ? 'block' : 'none';
+    }
+
+    // The unit conversion prompt is only rendered if needed, so we just toggle based on selection.
+    if (unitConversionPrompt) {
+        unitConversionPrompt.style.display = isNew ? 'none' : 'block';
     }
 }
 </script>

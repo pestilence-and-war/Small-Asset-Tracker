@@ -630,6 +630,49 @@ def delete_ingredient(ing_id):
 
     return "" # Return an empty string as the element will be removed from the DOM
 
+def _process_recipe_ingredients_for_import(recipe_data, conn):
+    """
+    Processes recipe ingredients for import, matching them with pantry ingredients,
+    and identifying conflicts for density and unit conversions.
+    """
+    all_ingredients_raw = conn.execute("SELECT id, name, base_unit_type, base_unit FROM ingredients").fetchall()
+    all_ingredients_map = {ing['name']: ing for ing in all_ingredients_raw}
+    all_ingredient_names = list(all_ingredients_map.keys())
+
+    for ingredient in recipe_data.get('ingredients', []):
+        ingredient_name = ingredient.get('name', '').lower()
+        best_match_record = None
+
+        # 1. Fuzzy match against existing ingredients
+        if ingredient_name and all_ingredient_names:
+            best_match_tuple = process.extractOne(ingredient_name, all_ingredient_names)
+            if best_match_tuple and best_match_tuple[1] > 80:
+                best_match_record = all_ingredients_map[best_match_tuple[0]]
+                ingredient['suggestion_id'] = best_match_record['id']
+            else:
+                ingredient['suggestion_id'] = None
+        else:
+            ingredient['suggestion_id'] = None
+
+        # 2. Check for unit conversion conflicts (e.g., recipe says "1 onion" but pantry has onions in "g")
+        ingredient['needs_unit_conversion_prompt'] = False
+        recipe_unit = ingredient.get('unit', '').strip().lower()
+        # A "unit" recipe item for a pantry item tracked by mass/volume needs a conversion
+        if best_match_record and (recipe_unit == 'unit' or not get_base_unit_type(recipe_unit)):
+            pantry_base_type = best_match_record['base_unit_type']
+            if pantry_base_type in ['mass', 'volume']:
+                ingredient['needs_unit_conversion_prompt'] = True
+                ingredient['pantry_base_unit'] = best_match_record['base_unit']
+
+        # 3. Check if a density prompt will be needed for a new ingredient
+        ingredient['needs_density_prompt'] = False
+        if not ingredient['suggestion_id']:  # It's a potential new ingredient
+            unit_type = get_base_unit_type(recipe_unit)
+            if unit_type in ['mass', 'volume']:
+                ingredient['needs_density_prompt'] = True
+
+    return recipe_data
+
 @app.route('/import_recipe_from_image', methods=['POST'])
 def import_recipe_from_image_route():
     if 'recipe_image' not in request.files:
@@ -641,44 +684,22 @@ def import_recipe_from_image_route():
 
     if file:
         filename = secure_filename(file.filename)
-        # Save to a temporary location
         upload_folder = os.path.join(app.root_path, 'static', 'uploads')
         if not os.path.exists(upload_folder):
             os.makedirs(upload_folder)
-
         image_path = os.path.join(upload_folder, filename)
         file.save(image_path)
 
         recipe_data = import_recipe_from_image(image_path)
-
         if not recipe_data:
             return "Could not parse recipe from image.", 500
 
         conn = get_db_connection()
-        all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
-        all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-        all_ingredient_names = list(all_ingredients_map.keys())
-
-        for ingredient in recipe_data.get('ingredients', []):
-            ingredient_name = ingredient.get('name', '').lower()
-            if ingredient_name and all_ingredient_names:
-                best_match = process.extractOne(ingredient_name, all_ingredient_names)
-                if best_match and best_match[1] > 80:
-                    ingredient['suggestion_id'] = all_ingredients_map[best_match[0]]
-                else:
-                    ingredient['suggestion_id'] = None
-            else:
-                ingredient['suggestion_id'] = None
-
-            ingredient['needs_density_prompt'] = False
-            if not ingredient['suggestion_id']:
-                unit = ingredient.get('unit', '').lower()
-                unit_type = get_base_unit_type(unit)
-                if unit_type in ['mass', 'volume']:
-                    ingredient['needs_density_prompt'] = True
-
-        all_ingredients_for_dropdown = conn.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
-        conn.close()
+        try:
+            recipe_data = _process_recipe_ingredients_for_import(recipe_data, conn)
+            all_ingredients_for_dropdown = conn.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
+        finally:
+            conn.close()
 
         return render_template(
             'recipe_import_review.html',
@@ -1105,38 +1126,15 @@ def import_recipe_process():
         return "No recipe text provided.", 400
 
     recipe_data = import_recipe_from_text(recipe_text)
-
     if not recipe_data:
         return "Could not parse recipe. Please check the format.", 500
 
     conn = get_db_connection()
-    all_ingredients_raw = conn.execute("SELECT id, name FROM ingredients").fetchall()
-    all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-    all_ingredient_names = list(all_ingredients_map.keys())
-
-    for ingredient in recipe_data.get('ingredients', []):
-        # 1. Fuzzy match against existing ingredients
-        ingredient_name = ingredient.get('name', '').lower()
-        if ingredient_name and all_ingredient_names:
-            best_match = process.extractOne(ingredient_name, all_ingredient_names)
-            if best_match and best_match[1] > 80:
-                ingredient['suggestion_id'] = all_ingredients_map[best_match[0]]
-            else:
-                ingredient['suggestion_id'] = None
-        else:
-            ingredient['suggestion_id'] = None
-
-        # 2. Check if a density prompt will be needed if it's a new ingredient
-        ingredient['needs_density_prompt'] = False
-        if not ingredient['suggestion_id']: # It's a potential new ingredient
-            unit = ingredient.get('unit', '').lower()
-            unit_type = get_base_unit_type(unit)
-            if unit_type in ['mass', 'volume']:
-                ingredient['needs_density_prompt'] = True
-
-    # Get a list of all ingredients for the dropdowns
-    all_ingredients_for_dropdown = conn.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
-    conn.close()
+    try:
+        recipe_data = _process_recipe_ingredients_for_import(recipe_data, conn)
+        all_ingredients_for_dropdown = conn.execute("SELECT id, name FROM ingredients ORDER BY name").fetchall()
+    finally:
+        conn.close()
 
     return render_template(
         'recipe_import_review.html',
@@ -1192,12 +1190,10 @@ def save_imported_recipe():
                         if density_str:
                             try:
                                 density_to_save = float(density_str)
-                                # If density is provided, it must be a mass/volume type.
-                                # The base unit will be 'g' for consistency.
                                 base_unit_type = 'mass'
                                 base_unit = 'g'
                             except (ValueError, TypeError):
-                                density_to_save = None # Ignore invalid density values
+                                density_to_save = None
 
                         cursor.execute(
                             "INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, density_g_ml) VALUES (?, ?, ?, ?, ?)",
@@ -1206,6 +1202,25 @@ def save_imported_recipe():
                         final_ingredient_id = cursor.lastrowid
                 else:
                     final_ingredient_id = int(ing_id_val)
+                    # Check for and save a submitted unit conversion factor
+                    conversion_factor_str = request.form.get(f'unit_conversion_factor_{final_ingredient_id}')
+                    if conversion_factor_str:
+                        try:
+                            factor = float(conversion_factor_str)
+                            from_unit = request.form.get(f'unit_conversion_from_{final_ingredient_id}')
+                            to_unit = request.form.get(f'unit_conversion_to_{final_ingredient_id}')
+
+                            if from_unit and to_unit and factor > 0:
+                                conn.execute(
+                                    "INSERT OR REPLACE INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+                                    (final_ingredient_id, from_unit, to_unit, factor)
+                                )
+                                conn.execute(
+                                    "INSERT OR REPLACE INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+                                    (final_ingredient_id, to_unit, from_unit, 1/factor)
+                                )
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass # Ignore invalid or zero factors
 
                 # 3. Add to meal_ingredients
                 if final_ingredient_id:
