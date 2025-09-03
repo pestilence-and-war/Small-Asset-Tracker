@@ -19,8 +19,7 @@ button,
 a[href],
 .button,
 .button-secondary,
-.modal,
-.category-section h4 {
+.modal {
     display: none !important;
 }
 
