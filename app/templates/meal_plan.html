@@ -14,23 +14,6 @@
     </form>
 
     <div id="meal-plan-content">
-        <!-- List of meals in the plan -->
-        <h3>Current Meal Plan</h3>
-        <ul id="meal-plan-list">
-            {% for item in meal_plan_items %}
-                <li>
-                    {{ item.meal_name }} (x{{ item.multiplier }})
-                    <button hx-delete="/meal-plan/remove/{{ item.id }}" hx-target="#meal-plan-content" hx-swap="innerHTML" class="button-small">Remove</button>
-                </li>
-            {% else %}
-                <li>Your meal plan is empty.</li>
-            {% endfor %}
-        </ul>
-
-        <!-- Shopping List Section -->
-        <div id="shopping-list-container">
-            {% include '_shopping_list.html' %}
-            <a href="/meal-plan/export" class="button" download="shopping-list.json">Export to JSON</a>
-        </div>
+        {% include '_meal_plan_content.html' %}
     </div>
 </div>
