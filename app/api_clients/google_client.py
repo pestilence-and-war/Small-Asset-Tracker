@@ -17,7 +17,7 @@ class GoogleClient:
         # Configure the library with your API key
         genai.configure(api_key=self.api_key)
         # Initialize the generative model
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
 
     def generate_content(self, contents: list, system_instruction: str = None, temperature: float = 0.1):
         """Generates content using the Google Generative AI model.
