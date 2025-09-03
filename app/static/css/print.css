@@ -1,0 +1,83 @@
+/* General print styles */
+body {
+    font-family: sans-serif;
+    line-height: 1.5;
+    color: #000;
+    background-color: #fff;
+}
+
+/* Hide non-essential elements */
+header,
+nav,
+form,
+button,
+.welcome-container,
+.meal-plan-container h2,
+.meal-plan-container form,
+#meal-plan-list,
+.meal-plan-container h3:first-of-type,
+a[href],
+.button,
+.button-secondary,
+.modal,
+.category-section h4 {
+    display: none !important;
+}
+
+/* Show only the shopping list */
+#shopping-list-container {
+    display: block !important;
+}
+
+/* Shopping list styles */
+#shopping-list {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.shopping-list-category {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.shopping-list-category li {
+    margin: 0;
+    padding: 5px 0;
+    border-bottom: 1px solid #ccc;
+}
+
+.shopping-list-category li:last-child {
+    border-bottom: none;
+}
+
+.ingredient-name {
+    font-weight: bold;
+}
+
+.ingredient-quantity {
+    margin-left: 10px;
+}
+
+.ingredient-unit {
+    margin-left: 5px;
+}
+
+/* Remove extra white space */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+h3 {
+    margin-bottom: 10px;
+    font-size: 1.2em;
+}
+
+h4 {
+    margin-bottom: 5px;
+    font-size: 1.1em;
+}

@@ -740,6 +740,89 @@ def delete_ingredient(ing_id):
 
     return "" # Return an empty string as the element will be removed from the DOM
 
+
+@app.route('/meal-plan/export')
+def meal_plan_export():
+    """Exports the current shopping list to JSON."""
+    conn = get_db_connection()
+    meal_plan = conn.execute("SELECT * FROM meal_plans WHERE name = 'default'").fetchone()
+    if not meal_plan:
+        conn.close()
+        return jsonify({"error": "No meal plan found."}), 404
+
+    meal_plan_id = meal_plan['id']
+    shopping_list = generate_shopping_list(meal_plan_id)
+    conn.close()
+
+    return jsonify(shopping_list)
+
+
+@app.route('/meal-plan/remove/<int:item_id>', methods=['DELETE'])
+def remove_meal_plan_item(item_id):
+    """Removes an item from the meal plan."""
+    conn = get_db_connection()
+    conn.execute("DELETE FROM meal_plan_items WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+
+    # After removing, re-render the meal plan content
+    return meal_plan()
+
+
+@app.route('/meal-plan', methods=['GET', 'POST'])
+def meal_plan():
+    """Renders the meal planning page and handles adding meals to the plan."""
+    conn = get_db_connection()
+
+    # For simplicity, we'll use a single, default meal plan.
+    # Check if a default meal plan exists, if not, create one.
+    meal_plan = conn.execute("SELECT * FROM meal_plans WHERE name = 'default'").fetchone()
+    if not meal_plan:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO meal_plans (name) VALUES ('default')")
+        conn.commit()
+        meal_plan_id = cursor.lastrowid
+    else:
+        meal_plan_id = meal_plan['id']
+
+    if request.method == 'POST':
+        meal_id = request.form.get('meal_id')
+        try:
+            multiplier = float(request.form.get('multiplier', 1.0))
+        except (ValueError, TypeError):
+            multiplier = 1.0
+
+        if meal_id:
+            # Add the selected meal to the meal plan
+            conn.execute(
+                "INSERT INTO meal_plan_items (meal_plan_id, meal_id, multiplier) VALUES (?, ?, ?)",
+                (meal_plan_id, meal_id, multiplier)
+            )
+            conn.commit()
+
+    # Fetch all meals for the dropdown
+    meals = get_all_meals()
+
+    # Fetch the current meal plan items to display
+    meal_plan_items_raw = conn.execute("""
+        SELECT
+            mpi.id, mpi.multiplier, m.name as meal_name
+        FROM meal_plan_items mpi
+        JOIN meals m ON mpi.meal_id = m.id
+        WHERE mpi.meal_plan_id = ?
+    """, (meal_plan_id,)).fetchall()
+
+    meal_plan_items = [dict(row) for row in meal_plan_items_raw]
+
+    # Generate the shopping list
+    shopping_list = generate_shopping_list(meal_plan_id)
+
+    conn.close()
+
+    if 'HX-Request' in request.headers:
+        return render_template('meal_plan.html', meals=meals, meal_plan_items=meal_plan_items, shopping_list=shopping_list)
+    return render_template('index.html', page_content=render_template('meal_plan.html', meals=meals, meal_plan_items=meal_plan_items, shopping_list=shopping_list))
+
 def _process_recipe_ingredients_for_import(recipe_data, conn):
     """Processes recipe ingredients for import.
 
@@ -1442,6 +1525,72 @@ def add_meal():
 
     meals = get_all_meals()
     return render_template('_meals_list.html', meals=meals)
+
+
+def generate_shopping_list(meal_plan_id):
+    """Generates a shopping list for a given meal plan."""
+    conn = get_db_connection()
+
+    # Get all meal plan items
+    meal_plan_items = conn.execute(
+        "SELECT meal_id, multiplier FROM meal_plan_items WHERE meal_plan_id = ?",
+        (meal_plan_id,)
+    ).fetchall()
+
+    required_ingredients = {}
+    for item in meal_plan_items:
+        meal_id = item['meal_id']
+        multiplier = item['multiplier']
+
+        # Get all ingredients for the meal
+        meal_ingredients = conn.execute(
+            "SELECT ingredient_id, quantity, unit FROM meal_ingredients WHERE meal_id = ?",
+            (meal_id,)
+        ).fetchall()
+
+        for mi in meal_ingredients:
+            ingredient_id = mi['ingredient_id']
+
+            # Convert recipe quantity to base unit
+            base_quantity, _, _ = convert_to_base(mi['quantity'], mi['unit'], ingredient_id, conn)
+
+            required_quantity = base_quantity * multiplier
+
+            if ingredient_id in required_ingredients:
+                required_ingredients[ingredient_id] += required_quantity
+            else:
+                required_ingredients[ingredient_id] = required_quantity
+
+    shopping_list = {}
+    for ingredient_id, total_required in required_ingredients.items():
+        # Get pantry quantity
+        ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+        pantry_quantity = ingredient['quantity']
+
+        needed = total_required - pantry_quantity
+        if needed > 0:
+            # Get display unit for the shopping list
+            display_unit_row = conn.execute(
+                "SELECT unit FROM ingredient_view_units WHERE ingredient_id = ? AND view_name = 'pantry'",
+                (ingredient_id,)
+            ).fetchone()
+            display_unit = display_unit_row['unit'] if display_unit_row else ingredient['base_unit']
+
+            # Convert needed quantity to display unit
+            display_quantity = convert_from_base(needed, ingredient['base_unit'], display_unit, ingredient_id, conn)
+
+            category = ingredient['category']
+            if category not in shopping_list:
+                shopping_list[category] = []
+
+            shopping_list[category].append({
+                'name': ingredient['name'],
+                'quantity': display_quantity,
+                'unit': display_unit
+            })
+
+    conn.close()
+    return shopping_list
 
 
 @app.route('/delete_meal/<int:meal_id>', methods=['DELETE'])
