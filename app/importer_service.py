@@ -67,6 +67,7 @@ def import_recipe_from_text(text: str) -> dict:
     from the provided text. If an ingredient has a qualifier that is not a common spice
     name (e.g., minced onion), only include the item name.
     If you encounter mixed fractions, include them as-is.
+    IMPORTANT: If included, also include the servings inside of the recipe place "number of servings" at the top of the instructions.
     The base unit for quantity is "unit" (example: when the recipe calls for 1 lemon).
     Return the output as a single, valid JSON object. Do not include any explanatory
     text or markdown formatting before or after the JSON object.
