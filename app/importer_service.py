@@ -6,9 +6,19 @@ from PIL import Image
 
 load_dotenv()
 
+
 def _parse_recipe_from_llm_response(response_text: str) -> dict:
-    """
-    Cleans and parses a JSON string from the model's response.
+    """Cleans and parses a JSON string from the model's response.
+
+    This function searches for a JSON object within the raw text response,
+    extracts it, and parses it into a Python dictionary.
+
+    Args:
+        response_text (str): The raw text response from the language model.
+
+    Returns:
+        dict: A dictionary containing the parsed recipe data, or an empty
+            dictionary if parsing fails.
     """
     try:
         # Find the start and end of the JSON object
@@ -40,9 +50,16 @@ def _parse_recipe_from_llm_response(response_text: str) -> dict:
         print(f"An unexpected error occurred during parsing: {e}")
         return {}
 
+
 def import_recipe_from_text(text: str) -> dict:
-    """
-    Uses the Google API to extract recipe data from a block of text.
+    """Uses the Google API to extract recipe data from a block of text.
+
+    Args:
+        text (str): A string containing the recipe.
+
+    Returns:
+        dict: A dictionary containing the extracted recipe data, or an empty
+            dictionary if an error occurs.
     """
     prompt = f"""
     You are a recipe parsing assistant. Your task is to extract the recipe name,
@@ -90,9 +107,16 @@ def import_recipe_from_text(text: str) -> dict:
         print(f"An unexpected error occurred during API call: {e}")
         return {}
 
+
 def import_recipe_from_image(image_path: str) -> dict:
-    """
-    Uses the Google API with vision capabilities to extract recipe data from an image.
+    """Uses the Google API with vision capabilities to extract recipe data from an image.
+
+    Args:
+        image_path (str): The file path to the recipe image.
+
+    Returns:
+        dict: A dictionary containing the extracted recipe data, or an empty
+            dictionary if an error occurs.
     """
     prompt = """
     You are a recipe parsing assistant. Your task is to analyze the provided image,
