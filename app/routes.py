@@ -1577,7 +1577,7 @@ def generate_shopping_list(meal_plan_id):
             display_unit = display_unit_row['unit'] if display_unit_row else ingredient['base_unit']
 
             # Convert needed quantity to display unit
-            display_quantity = convert_from_base(needed, ingredient['base_unit'], display_unit, ingredient_id, conn)
+            display_quantity = convert_units(needed, ingredient['base_unit'], display_unit, ingredient_id, conn)
 
             category = ingredient['category']
             if category not in shopping_list:
