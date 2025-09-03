@@ -35,9 +35,9 @@ def get_all_categories():
     """
     return [
         'Alcohol', 'Bakery & Bread', 'Baking', 'Beverages', 'Breakfast & Cereal',
-        'Candy', 'Canned Goods', 'Condiments', 'Dairy & Eggs', 'Deli', 'Dry Goods',
-        'Fresh Produce', 'Frozen', 'Frozen Foods', 'Meat & Seafood', 'Meats',
-        'Other', 'Pantry', 'Snacks', 'Spices'
+        'Candy', 'Canned Goods', 'Condiments', 'Dairy & Eggs', 'Deli', 'Dips & Cheeseballs', 'Dry Goods',
+        'Fresh Produce', 'Frozen Foods', 'Meat & Seafood',
+        'Other', 'Pantry', 'Snacks', 'Soups and Chili mixes', 'Spices'
     ]
 
 
