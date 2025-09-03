@@ -763,10 +763,28 @@ def remove_meal_plan_item(item_id):
     conn = get_db_connection()
     conn.execute("DELETE FROM meal_plan_items WHERE id = ?", (item_id,))
     conn.commit()
+
+    # After removing, re-render ONLY the meal plan content.
+    # To do this, we need to fetch the data required by the partial template.
+    meal_plan = conn.execute("SELECT * FROM meal_plans WHERE name = 'default'").fetchone()
+    meal_plan_id = meal_plan['id'] if meal_plan else 0
+
+    # Fetch data needed for the template context
+    meals = get_all_meals()
+    meal_plan_items_raw = conn.execute("""
+        SELECT
+            mpi.id, mpi.multiplier, m.name as meal_name
+        FROM meal_plan_items mpi
+        JOIN meals m ON mpi.meal_id = m.id
+        WHERE mpi.meal_plan_id = ?
+    """, (meal_plan_id,)).fetchall()
+    meal_plan_items = [dict(row) for row in meal_plan_items_raw]
     conn.close()
 
-    # After removing, re-render the meal plan content
-    return meal_plan()
+    shopping_list = generate_shopping_list(meal_plan_id)
+
+    # Render the partial template with the updated context
+    return render_template('_meal_plan_content.html', meals=meals, meal_plan_items=meal_plan_items, shopping_list=shopping_list)
 
 
 @app.route('/meal-plan', methods=['GET', 'POST'])
@@ -785,6 +803,7 @@ def meal_plan():
     else:
         meal_plan_id = meal_plan['id']
 
+    # This block handles the form submission for adding a meal to the plan
     if request.method == 'POST':
         meal_id = request.form.get('meal_id')
         try:
@@ -799,7 +818,24 @@ def meal_plan():
                 (meal_plan_id, meal_id, multiplier)
             )
             conn.commit()
+        
+        # After adding, re-render ONLY the content partial with the updated data.
+        meals = get_all_meals()
+        meal_plan_items_raw = conn.execute("""
+            SELECT
+                mpi.id, mpi.multiplier, m.name as meal_name
+            FROM meal_plan_items mpi
+            JOIN meals m ON mpi.meal_id = m.id
+            WHERE mpi.meal_plan_id = ?
+        """, (meal_plan_id,)).fetchall()
+        meal_plan_items = [dict(row) for row in meal_plan_items_raw]
+        conn.close()
 
+        shopping_list = generate_shopping_list(meal_plan_id)
+        
+        return render_template('_meal_plan_content.html', meals=meals, meal_plan_items=meal_plan_items, shopping_list=shopping_list)
+
+    # This block now only handles GET requests
     # Fetch all meals for the dropdown
     meals = get_all_meals()
 
@@ -811,16 +847,17 @@ def meal_plan():
         JOIN meals m ON mpi.meal_id = m.id
         WHERE mpi.meal_plan_id = ?
     """, (meal_plan_id,)).fetchall()
-
     meal_plan_items = [dict(row) for row in meal_plan_items_raw]
+    conn.close()
 
     # Generate the shopping list
     shopping_list = generate_shopping_list(meal_plan_id)
 
-    conn.close()
-
     if 'HX-Request' in request.headers:
+        # For HTMX GET requests (e.g., navigating from another page), render the full component
         return render_template('meal_plan.html', meals=meals, meal_plan_items=meal_plan_items, shopping_list=shopping_list)
+    
+    # For a full browser page load, render the index with the component
     return render_template('index.html', page_content=render_template('meal_plan.html', meals=meals, meal_plan_items=meal_plan_items, shopping_list=shopping_list))
 
 def _process_recipe_ingredients_for_import(recipe_data, conn):
