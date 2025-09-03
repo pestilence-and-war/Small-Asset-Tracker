@@ -1,10 +1,22 @@
 from app.database import get_db_connection
 import re
 
+
 def parse_quantity(quantity_str):
-    """
-    Parses a quantity string that can be a decimal, a fraction, or a mixed number.
-    e.g., "1.5", "1/2", "1 1/2"
+    """Parses a quantity string into a float.
+
+    The string can be a decimal, a fraction, or a mixed number.
+    For example: "1.5", "1/2", "1 1/2".
+
+    Args:
+        quantity_str (str or float): The string to parse. If a float is passed,
+            it will be returned as is.
+
+    Returns:
+        float: The parsed quantity as a float.
+
+    Raises:
+        ValueError: If the string format is invalid.
     """
     if not isinstance(quantity_str, str):
         return float(quantity_str)
@@ -46,10 +58,18 @@ def parse_quantity(quantity_str):
     except ValueError:
         raise ValueError(f"Could not parse quantity: '{quantity_str}'")
 
+
 def get_base_unit_type(unit):
-    """
-    Determines if a unit is for mass, volume, or count.
-    This is a simplified mapping.
+    """Determines if a unit is for mass, volume, or count.
+
+    This is a simplified mapping based on common cooking units.
+
+    Args:
+        unit (str): The unit to classify (e.g., 'g', 'ml', 'cup').
+
+    Returns:
+        str or None: The type of unit ('mass', 'volume', 'count'), or None if
+            the unit is not recognized.
     """
     # Mass
     if unit in ['g', 'kg', 'lb', 'oz']:
@@ -62,8 +82,17 @@ def get_base_unit_type(unit):
         return 'count'
     return None
 
+
 def get_base_unit(unit_type):
-    """Returns the base unit for a given type."""
+    """Returns the base unit for a given unit type.
+
+    Args:
+        unit_type (str): The type of unit ('mass', 'volume', 'count').
+
+    Returns:
+        str or None: The base unit ('g', 'ml', 'unit'), or None if the type
+            is not recognized.
+    """
     if unit_type == 'mass':
         return 'g'
     if unit_type == 'volume':
@@ -72,10 +101,30 @@ def get_base_unit(unit_type):
         return 'unit'
     return None
 
+
 def convert_to_base(quantity, unit, ingredient_id=None, conn=None):
-    """
-    Converts a given quantity and unit to its base unit quantity.
-    Returns (converted_quantity, base_unit, base_unit_type)
+    """Converts a given quantity and unit to its base unit quantity.
+
+    The base units are 'g' for mass, 'ml' for volume, and 'unit' for count.
+    The conversion can be direct (e.g., 'kg' to 'g'), or based on an
+    ingredient's density (e.g., 'cup' of flour to 'g').
+
+    Args:
+        quantity (float): The quantity to convert.
+        unit (str): The unit of the quantity.
+        ingredient_id (int, optional): The ID of the ingredient, used for
+            density-based conversions. Defaults to None.
+        conn (sqlite3.Connection, optional): The database connection. If not
+            provided, a new one will be created. Defaults to None.
+
+    Returns:
+        tuple: A tuple containing:
+            - float: The converted quantity.
+            - str: The base unit.
+            - str: The type of the base unit.
+
+    Raises:
+        ValueError: If the conversion cannot be performed.
     """
     close_conn = False
     if conn is None:
@@ -165,11 +214,22 @@ def convert_to_base(quantity, unit, ingredient_id=None, conn=None):
         if close_conn and conn:
             conn.close()
 
+
 def needs_conversion_prompt(unit, ingredient_id, conn=None):
-    """
-    Checks if we need to prompt the user for a mass-to-volume conversion.
-    This happens when a user enters a unit of a different type than the stored
-    base unit type for an ingredient (e.g., adding 'cups' to 'flour' which is stored in 'g').
+    """Checks if a mass-to-volume conversion prompt is needed.
+
+    This is required when a user enters a unit of a different type than the
+    ingredient's stored base unit (e.g., adding 'cups' to 'flour' which is
+    stored in 'g'), and the density is not known.
+
+    Args:
+        unit (str): The unit entered by the user.
+        ingredient_id (int): The ID of the ingredient.
+        conn (sqlite3.Connection, optional): The database connection. If not
+            provided, a new one will be created. Defaults to None.
+
+    Returns:
+        bool: True if a prompt is needed, False otherwise.
     """
     close_conn = False
     if conn is None:
@@ -198,10 +258,19 @@ def needs_conversion_prompt(unit, ingredient_id, conn=None):
         if close_conn and conn:
             conn.close()
 
+
 def get_conversion_prompt_html(ingredient_id, original_quantity, original_unit, pending_quantity):
-    """
-    Generates HTML for a conversion prompt.
-    `pending_quantity` is the amount in the base unit that we couldn't convert.
+    """Generates HTML for a conversion prompt.
+
+    Args:
+        ingredient_id (int): The ID of the ingredient requiring conversion.
+        original_quantity (float): The original quantity entered by the user.
+        original_unit (str): The original unit entered by the user.
+        pending_quantity (float): The amount in the base unit that could not
+            be converted.
+
+    Returns:
+        str: The HTML for the conversion prompt.
     """
     conn = get_db_connection()
     ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
@@ -227,9 +296,17 @@ def get_conversion_prompt_html(ingredient_id, original_quantity, original_unit, 
     </div>
     """
 
+
 def get_new_ingredient_conversion_prompt_html(ingredient_name, original_quantity, original_unit):
-    """
-    Generates HTML for a density prompt for a NEW ingredient that has mass or volume.
+    """Generates HTML for a density prompt for a new ingredient.
+
+    Args:
+        ingredient_name (str): The name of the new ingredient.
+        original_quantity (float): The original quantity entered by the user.
+        original_unit (str): The original unit entered by the user.
+
+    Returns:
+        str: The HTML for the density prompt.
     """
     return f"""
     <div id="conversion-prompt" class="conversion-prompt">
@@ -249,10 +326,17 @@ def get_new_ingredient_conversion_prompt_html(ingredient_name, original_quantity
     </div>
     """
 
+
 def format_fraction(num):
-    """
-    Converts a float to a string, including common cooking fractions.
-    e.g., 1.5 -> "1 1/2", 0.25 -> "1/4"
+    """Converts a float to a string, including common cooking fractions.
+
+    For example, 1.5 becomes "1 1/2", and 0.25 becomes "1/4".
+
+    Args:
+        num (float or None): The number to format.
+
+    Returns:
+        str: The formatted string, or an empty string if num is None.
     """
     if num is None:
         return ""
@@ -290,10 +374,23 @@ def format_fraction(num):
         return f"{num:.2f}".rstrip('0').rstrip('.')
 
 
+
 def convert_from_base(base_quantity, base_unit, density_g_ml=None, conn=None):
-    """
-    Converts a quantity from its base unit (g, ml, unit) to a more
-    human-readable format for recipes.
+    """Converts a quantity from its base unit to a human-readable format.
+
+    This function attempts to convert a base unit quantity (g, ml, or unit)
+    into a more convenient unit for display in recipes (e.g., 'cup', 'tbsp').
+
+    Args:
+        base_quantity (float): The quantity in the base unit.
+        base_unit (str): The base unit ('g', 'ml', 'unit').
+        density_g_ml (float, optional): The density of the ingredient in g/ml,
+            required for mass-to-volume conversions. Defaults to None.
+        conn (sqlite3.Connection, optional): The database connection. If not
+            provided, a new one will be created. Defaults to None.
+
+    Returns:
+        str: A formatted string representing the converted quantity and unit.
     """
     if base_unit == 'unit':
         return f"{format_fraction(base_quantity)} {base_unit}"
@@ -346,9 +443,27 @@ def convert_from_base(base_quantity, base_unit, density_g_ml=None, conn=None):
         if close_conn and conn:
             conn.close()
 
+
 def convert_units(quantity, from_unit, to_unit, ingredient_id=None, conn=None):
-    """
-    A general-purpose function to convert between any two units.
+    """A general-purpose function to convert between any two units.
+
+    This function leverages `convert_to_base` to first convert the source
+    quantity to its base unit, and then converts it to the target unit.
+
+    Args:
+        quantity (float): The quantity to convert.
+        from_unit (str): The starting unit.
+        to_unit (str): The target unit.
+        ingredient_id (int, optional): The ID of the ingredient, required for
+            conversions between mass and volume. Defaults to None.
+        conn (sqlite3.Connection, optional): The database connection. If not
+            provided, a new one will be created. Defaults to None.
+
+    Returns:
+        float: The converted quantity.
+
+    Raises:
+        ValueError: If a conversion path cannot be found.
     """
     from_unit = from_unit.lower().strip()
     to_unit = to_unit.lower().strip()

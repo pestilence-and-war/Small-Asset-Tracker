@@ -13,12 +13,26 @@ from werkzeug.utils import secure_filename
 from app.importer_service import import_recipe_from_text, import_recipe_from_image
 
 def get_all_units():
-    # These are hardcoded for consistency in the UI
+    """Returns lists of mass and volume units.
+
+    These are hardcoded for consistency in the UI.
+
+    Returns:
+        tuple: A tuple containing two lists:
+            - list: Mass units.
+            - list: Volume units.
+    """
     mass_units = ['g', 'kg', 'lb', 'oz']
     volume_units = ['ml', 'l', 'cc', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint']
     return mass_units, volume_units
 
+
 def get_all_categories():
+    """Returns a list of all available ingredient categories.
+
+    Returns:
+        list: A list of category names.
+    """
     return [
         'Alcohol', 'Bakery & Bread', 'Baking', 'Beverages', 'Breakfast & Cereal',
         'Candy', 'Canned Goods', 'Condiments', 'Dairy & Eggs', 'Deli', 'Dry Goods',
@@ -26,7 +40,18 @@ def get_all_categories():
         'Other', 'Pantry', 'Snacks', 'Spices'
     ]
 
+
 def get_all_ingredients(view_name='pantry'):
+    """Fetches all ingredients from the database, grouped by category.
+
+    Args:
+        view_name (str, optional): The view for which to fetch the ingredients.
+            This affects the display unit. Defaults to 'pantry'.
+
+    Returns:
+        dict: A dictionary of ingredients, with categories as keys and lists
+            of ingredient dictionaries as values.
+    """
     conn = get_db_connection()
     # Join with ingredient_view_units to get the preferred display unit
     query = f"""
@@ -80,7 +105,13 @@ def get_all_ingredients(view_name='pantry'):
     conn.close()
     return ingredients_by_category
 
+
 def get_all_meals():
+    """Fetches all meals from the database.
+
+    Returns:
+        list: A list of meal dictionaries.
+    """
     conn = get_db_connection()
     meals = conn.execute('SELECT * FROM meals ORDER BY name').fetchall()
     conn.close()
@@ -88,19 +119,32 @@ def get_all_meals():
 
 @app.route('/')
 def index():
+    """Renders the main page.
+
+    If the request is an HTMX request, it returns only the home content partial.
+    Otherwise, it returns the full index page.
+    """
     ingredients = get_all_ingredients()
     meals = get_all_meals()
     if 'HX-Request' in request.headers:
         return render_template('_home_content.html', ingredients=ingredients, meals=meals)
     return render_template('index.html', ingredients=ingredients, meals=meals)
 
+
 @app.route('/pantry')
 def pantry():
+    """Renders the pantry page."""
     ingredients = get_all_ingredients()
     return render_template('pantry.html', ingredients=ingredients)
 
+
 @app.route('/add_ingredient', methods=['POST'])
 def add_ingredient():
+    """Adds a new ingredient or updates the quantity of an existing one.
+
+    This route handles the form submission for adding ingredients to the pantry.
+    It can trigger a conversion prompt if necessary.
+    """
     ingredient_name = request.form['q'].strip().lower()
     try:
         quantity = parse_quantity(request.form.get('quantity', '0'))
@@ -153,8 +197,13 @@ def add_ingredient():
     ingredients = get_all_ingredients()
     return render_template('_ingredients_list.html', ingredients=ingredients)
 
+
 @app.route('/search')
 def search():
+    """Searches for ingredients based on a query string.
+
+    Uses fuzzy matching to find the best matches.
+    """
     query = request.args.get('q', '').strip().lower()
     ingredients = []
     if query:
@@ -180,6 +229,11 @@ def search():
 
 @app.route('/search_pantry_ingredients')
 def search_pantry_ingredients():
+    """Searches for ingredients and includes an option to add a new one.
+
+    Similar to `/search`, but tailored for the pantry view, offering to
+    create a new ingredient if no good match is found.
+    """
     query = request.args.get('q', '').strip().lower()
     ingredients = []
     if query:
@@ -213,6 +267,12 @@ def search_pantry_ingredients():
 
 @app.route('/update_quantity', methods=['POST'])
 def update_quantity():
+    """Updates the quantity of an ingredient by a given amount.
+
+    This is used for the + and - buttons in the pantry view.
+    The change amount is converted from the display unit to the base unit
+    before updating the database.
+    """
     ingredient_id = request.form['id']
     view_name = request.form.get('view_name', 'pantry')
 
@@ -242,8 +302,14 @@ def update_quantity():
 
     return render_template('_ingredient_item.html', ingredient=ingredient, show_edit_buttons=True, view_name=view_name)
 
+
 @app.route('/add_conversion', methods=['POST'])
 def add_conversion():
+    """Adds a new ingredient-specific unit conversion.
+
+    This is triggered by the conversion prompt when adding an ingredient
+    with a unit that requires a new conversion factor.
+    """
     ingredient_id = request.form['ingredient_id']
     from_unit = request.form['from_unit']
     to_unit = request.form['to_unit']
@@ -279,6 +345,11 @@ def add_conversion():
 
 @app.route('/add_new_ingredient_with_density', methods=['POST'])
 def add_new_ingredient_with_density():
+    """Adds a new ingredient with a specified density.
+
+    This is used when a new ingredient is added with a mass or volume unit,
+    requiring a density for future conversions.
+    """
     ingredient_name = request.form['ingredient_name'].strip().lower()
     original_quantity = float(request.form['original_quantity'])
     original_unit = request.form['original_unit']
@@ -320,8 +391,14 @@ def add_new_ingredient_with_density():
     ingredients = get_all_ingredients()
     return render_template('_ingredients_list.html', ingredients=ingredients)
 
+
 @app.route('/start_cooking_session', methods=['POST'])
 def start_cooking_session():
+    """Starts a new cooking session for a selected meal.
+
+    It calculates the required ingredients based on the portion size and
+    checks them against the pantry inventory.
+    """
     meal_id = request.form.get('meal_id')
     try:
         portion = float(request.form.get('portion', 1.0))
@@ -389,9 +466,20 @@ def start_cooking_session():
         return render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions)
     return render_template('index.html', page_content=render_template('cooking_mode.html', meal=meal, portion=portion, recipe_items=recipe_items, missing_conversions=missing_conversions))
 
+
 def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
-    # This is a bit redundant with get_all_ingredients, but it's for a single item.
-    # In a larger app, you'd refactor this.
+    """Fetches a single ingredient by its ID, with display unit handling.
+
+    Args:
+        ingredient_id (int): The ID of the ingredient to fetch.
+        view_name (str, optional): The view context, affecting the display unit.
+            Defaults to 'pantry'.
+        for_editing (bool, optional): If True, provides all possible units for
+            editing forms. Defaults to False.
+
+    Returns:
+        dict or None: A dictionary of the ingredient's data, or None if not found.
+    """
     conn = get_db_connection()
     query = f"""
         SELECT
@@ -442,6 +530,7 @@ def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
 
 @app.route('/update_ingredient_display_unit/<int:ingredient_id>', methods=['POST'])
 def update_ingredient_display_unit(ingredient_id):
+    """Updates the preferred display unit for an ingredient in a specific view."""
     new_unit = request.form.get('unit')
     view_name = request.form.get('view_name', 'pantry')
 
@@ -473,19 +562,31 @@ def update_ingredient_display_unit(ingredient_id):
 
 @app.route('/ingredient/<int:ing_id>')
 def get_ingredient(ing_id):
-    # This route might be deprecated by the new get_ingredient_by_id, but we'll keep it for now.
+    """Fetches and renders a single ingredient item.
+
+    Note: This might be deprecated by more specific rendering routes.
+    """
     ingredient = get_ingredient_by_id(ing_id)
     return render_template('_ingredient_item.html', ingredient=ingredient)
 
+
 @app.route('/edit_ingredient_form/<int:ing_id>')
 def edit_ingredient_form(ing_id):
+    """Renders the form for editing an ingredient."""
     view_name = request.args.get('view_name', 'pantry')
     ingredient = get_ingredient_by_id(ing_id, view_name, for_editing=True)
     categories = get_all_categories()
     return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name, categories=categories)
 
+
 @app.route('/edit_ingredient/<int:ing_id>', methods=['POST'])
 def edit_ingredient(ing_id):
+    """Handles the submission of the ingredient edit form.
+
+    This route manages changes to an ingredient's name, quantity, unit, and
+    category. It can trigger a density prompt if the unit type changes
+    between mass and volume without a known density.
+    """
     view_name = request.form.get('view_name', 'pantry')
     new_name = request.form.get('name', '').strip().lower()
     new_quantity_str = request.form.get('quantity', '0')
@@ -559,6 +660,11 @@ def edit_ingredient(ing_id):
 
 @app.route('/update_ingredient_details/<int:ing_id>', methods=['POST'])
 def update_ingredient_details(ing_id):
+    """Updates ingredient details, including density.
+
+    This route is used after a density prompt to update an ingredient's
+    properties, including its name, quantity, unit, and density.
+    """
     view_name = request.form.get('view_name', 'pantry')
     new_name = request.form.get('new_name', '').strip().lower()
     new_quantity_str = request.form.get('new_quantity', '0')
@@ -615,6 +721,10 @@ def update_ingredient_details(ing_id):
 
 @app.route('/delete_ingredient/<int:ing_id>', methods=['DELETE'])
 def delete_ingredient(ing_id):
+    """Deletes an ingredient from the database.
+
+    Also removes any references to the ingredient in meals.
+    """
     conn = get_db_connection()
     try:
         # First, delete references in meal_ingredients
@@ -631,9 +741,17 @@ def delete_ingredient(ing_id):
     return "" # Return an empty string as the element will be removed from the DOM
 
 def _process_recipe_ingredients_for_import(recipe_data, conn):
-    """
-    Processes recipe ingredients for import, matching them with pantry ingredients,
-    and identifying conflicts for density and unit conversions.
+    """Processes recipe ingredients for import.
+
+    This function matches ingredients from a recipe with existing pantry
+    ingredients, and identifies conflicts for density and unit conversions.
+
+    Args:
+        recipe_data (dict): The recipe data parsed from the import source.
+        conn (sqlite3.Connection): The database connection.
+
+    Returns:
+        dict: The processed recipe data with added conflict flags.
     """
     all_ingredients_raw = conn.execute("SELECT id, name, base_unit_type, base_unit FROM ingredients").fetchall()
     all_ingredients_map = {ing['name']: ing for ing in all_ingredients_raw}
@@ -675,8 +793,15 @@ def _process_recipe_ingredients_for_import(recipe_data, conn):
 
     return recipe_data
 
+
 @app.route('/import_recipe_from_image', methods=['POST'])
 def import_recipe_from_image_route():
+    """Handles the import of a recipe from an uploaded image.
+
+    This route saves the uploaded image, calls the importer service to
+    extract recipe data, processes the ingredients for import, and
+    renders the review page.
+    """
     if 'recipe_image' not in request.files:
         return "No image file provided.", 400
 
@@ -711,6 +836,10 @@ def import_recipe_from_image_route():
 
 @app.route('/filter_meals', methods=['POST'])
 def filter_meals():
+    """Filters meals based on selected ingredients.
+
+    Returns a list of meals that contain all of the selected ingredients.
+    """
     ingredient_ids = request.form.getlist('ingredient_ids')
     if not ingredient_ids or 'any' in ingredient_ids:
         meals = get_all_meals()
@@ -735,8 +864,10 @@ def filter_meals():
     
     return render_template('_meals_list.html', meals=meals)
 
+
 @app.route('/batch_add_ingredients', methods=['POST'])
 def batch_add_ingredients():
+    """Adds multiple ingredients to the pantry from a comma-separated list."""
     ingredients_list_str = request.form.get('ingredients_list', '')
     if not ingredients_list_str:
         ingredients = get_all_ingredients()
@@ -768,6 +899,7 @@ def batch_add_ingredients():
 
 @app.route('/search_for_converter', methods=['POST'])
 def search_for_converter():
+    """Searches for ingredients for the unit converter tool."""
     query = request.form.get('ingredient_name', '').strip().lower()
     ingredients = []
     if query:
@@ -787,8 +919,10 @@ def search_for_converter():
 
     return render_template('_search_results_for_converter.html', ingredients=ingredients)
 
+
 @app.route('/calculate_conversion', methods=['POST'])
 def calculate_conversion():
+    """Calculates a unit conversion for a given ingredient."""
     try:
         from_quantity = float(request.form['from_quantity'])
         from_unit = request.form['from_unit']
@@ -808,8 +942,10 @@ def calculate_conversion():
     except Exception as e:
         return f"<p class='error'>An unexpected error occurred: {e}</p>"
 
+
 @app.route('/calculate_density', methods=['POST'])
 def calculate_density():
+    """Calculates the density of an ingredient in g/ml."""
     try:
         vol_qty = float(request.form['vol_qty'])
         vol_unit = request.form['vol_unit']
@@ -856,6 +992,15 @@ def calculate_density():
         return f"<p class='error'>An unexpected error occurred: {e}</p>"
 
 def get_meal_ingredients(meal_id, view_name='recipe'):
+    """Fetches all ingredients for a given meal.
+
+    Args:
+        meal_id (int): The ID of the meal.
+        view_name (str, optional): The view context. Defaults to 'recipe'.
+
+    Returns:
+        list: A list of processed ingredient dictionaries for the meal.
+    """
     conn = get_db_connection()
     meal_ingredients_raw = conn.execute("""
         SELECT
@@ -915,8 +1060,10 @@ def get_meal_ingredients(meal_id, view_name='recipe'):
     conn.close()
     return processed_ingredients
 
+
 @app.route('/recipe/<int:meal_id>')
 def recipe_editor(meal_id):
+    """Renders the recipe editor page for a given meal."""
     conn = get_db_connection()
     meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
     conn.close()
@@ -927,6 +1074,7 @@ def recipe_editor(meal_id):
 
 @app.route('/update_instructions/<int:meal_id>', methods=['POST'])
 def update_instructions(meal_id):
+    """Updates the instructions for a given meal."""
     instructions = request.form.get('instructions')
     conn = get_db_connection()
     try:
@@ -939,8 +1087,10 @@ def update_instructions(meal_id):
         if conn: conn.close()
     return "", 204
 
+
 @app.route('/add_ingredient_to_meal/<int:meal_id>', methods=['POST'])
 def add_ingredient_to_meal(meal_id):
+    """Adds an ingredient to a meal's recipe."""
     ingredient_name = request.form['q'].strip().lower()
     quantity = request.form['quantity']
     unit = request.form['unit'].strip().lower()
@@ -981,6 +1131,7 @@ def add_ingredient_to_meal(meal_id):
 
 @app.route('/update_recipe_ingredient_unit/<int:meal_id>/<int:ingredient_id>', methods=['POST'])
 def update_recipe_ingredient_unit(meal_id, ingredient_id):
+    """Updates the display unit for an ingredient within a recipe view."""
     new_unit = request.form.get('unit')
     view_name = 'recipe' # Hardcoded for this route
 
@@ -1010,6 +1161,7 @@ def update_recipe_ingredient_unit(meal_id, ingredient_id):
 
 @app.route('/remove_ingredient_from_meal/<int:meal_id>/<int:meal_ingredient_id>', methods=['DELETE'])
 def remove_ingredient_from_meal(meal_id, meal_ingredient_id):
+    """Removes an ingredient from a meal's recipe."""
     conn = get_db_connection()
     try:
         conn.execute("DELETE FROM meal_ingredients WHERE id = ?", (meal_ingredient_id,))
@@ -1020,8 +1172,10 @@ def remove_ingredient_from_meal(meal_id, meal_ingredient_id):
         conn.close()
     return ""
 
+
 @app.route('/search_ingredients_for_recipe/<int:meal_id>', methods=['POST'])
 def search_ingredients_for_recipe(meal_id):
+    """Searches for ingredients to add to a recipe."""
     query = request.form.get('q', '').strip().lower()
     ingredients = []
     if query:
@@ -1043,6 +1197,11 @@ def search_ingredients_for_recipe(meal_id):
 
 @app.route('/select_ingredient', methods=['POST'])
 def select_ingredient():
+    """Handles the selection of an ingredient from search results.
+
+    This route updates the search input with the selected ingredient name
+    and clears the search results.
+    """
     ingredient_name = request.form['ingredient_name']
     meal_id = request.form['meal_id']
     # The main returned element replaces the search input.
@@ -1055,8 +1214,10 @@ def select_ingredient():
                    hx-swap="innerHTML">
                <div id="search-results-for-recipe" hx-swap-oob="true"></div>'''
 
+
 @app.route('/meal/<int:meal_id>')
 def meal_page(meal_id):
+    """Renders the page for a single meal."""
     conn = get_db_connection()
     meal = conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
     conn.close()
@@ -1067,6 +1228,7 @@ def meal_page(meal_id):
 
 @app.route('/search_ingredients_for_cooking', methods=['POST'])
 def search_ingredients_for_cooking():
+    """Searches for ingredients within the cooking session context."""
     query = request.form.get('q', '').strip().lower()
     ingredients = []
     if query:
@@ -1086,8 +1248,10 @@ def search_ingredients_for_cooking():
 
     return render_template('_search_results_for_cooking.html', ingredients=ingredients)
 
+
 @app.route('/add_ingredient_to_cooking_session', methods=['POST'])
 def add_ingredient_to_cooking_session():
+    """Adds an ingredient to the cooking session display."""
     ingredient_id = request.form['ingredient_id']
     quantity = request.form['quantity']
     conn = get_db_connection()
@@ -1097,6 +1261,7 @@ def add_ingredient_to_cooking_session():
 
 @app.route('/update_pantry', methods=['POST'])
 def update_pantry():
+    """Updates the pantry by deducting the quantities of ingredients used in a cooking session."""
     # A list of strings like "ingredient_id_quantity_to_deduct"
     ingredients_used = request.form.getlist('ingredient_used')
 
@@ -1121,8 +1286,10 @@ def update_pantry():
     finally:
         if conn: conn.close()
 
+
 @app.route('/import_recipe_process', methods=['POST'])
 def import_recipe_process():
+    """Processes a recipe from text input for import review."""
     recipe_text = request.form.get('recipe_text', '')
     if not recipe_text:
         return "No recipe text provided.", 400
@@ -1146,6 +1313,12 @@ def import_recipe_process():
 
 @app.route('/save_imported_recipe', methods=['POST'])
 def save_imported_recipe():
+    """Saves a new recipe from the import review page.
+
+    This complex route handles creating a new meal, creating new ingredients
+    (with or without density), associating existing ingredients, saving new
+    unit conversions, and finally associating all ingredients with the new meal.
+    """
     conn = get_db_connection()
     try:
         with conn:
@@ -1246,12 +1419,15 @@ def save_imported_recipe():
 
 @app.route('/recipes')
 def recipes():
+    """Renders the main recipe manager page."""
     meals = get_all_meals()
     ingredients_by_category = get_all_ingredients()
     return render_template('recipe_manager.html', meals=meals, ingredients_by_category=ingredients_by_category)
 
+
 @app.route('/add_meal', methods=['POST'])
 def add_meal():
+    """Adds a new, empty meal."""
     meal_name = request.form['meal_name'].strip().lower()
     if meal_name:
         conn = get_db_connection()
@@ -1267,8 +1443,10 @@ def add_meal():
     meals = get_all_meals()
     return render_template('_meals_list.html', meals=meals)
 
+
 @app.route('/delete_meal/<int:meal_id>', methods=['DELETE'])
 def delete_meal(meal_id):
+    """Deletes a meal and all its associated recipe ingredients."""
     conn = get_db_connection()
     try:
         # First, delete references in meal_ingredients
