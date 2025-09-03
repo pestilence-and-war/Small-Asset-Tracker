@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pantry Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body hx-boost="true">
@@ -15,6 +16,7 @@
                 <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="active">Home</a>
                 <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML">Pantry</a>
                 <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML">Recipes</a>
+                <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML">Meal Plan</a>
                 <button type="button" onclick="openModal('converter-modal')" class="button-secondary">Unit Converter</button>
             </nav>
         </header>

@@ -86,6 +86,22 @@ def init_db():
             UNIQUE(ingredient_id, view_name)
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS meal_plans (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS meal_plan_items (
+            id INTEGER PRIMARY KEY,
+            meal_plan_id INTEGER NOT NULL,
+            meal_id INTEGER NOT NULL,
+            multiplier REAL NOT NULL DEFAULT 1.0,
+            FOREIGN KEY (meal_plan_id) REFERENCES meal_plans (id),
+            FOREIGN KEY (meal_id) REFERENCES meals (id)
+        )
+    ''')
     # Add category column to ingredients if it doesn't exist
     try:
         conn.execute('SELECT category FROM ingredients LIMIT 1').fetchall()
