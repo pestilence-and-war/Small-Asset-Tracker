@@ -1,0 +1,19 @@
+<div class="meal-plan-container">
+    <h2>Meal Plan</h2>
+
+    <!-- Form to add a meal to the plan -->
+    <form hx-post="/meal-plan" hx-target="#meal-plan-content" hx-swap="innerHTML">
+        <select name="meal_id" required>
+            <option value="">Select a meal...</option>
+            {% for meal in meals %}
+                <option value="{{ meal.id }}">{{ meal.name }}</option>
+            {% endfor %}
+        </select>
+        <input type="number" name="multiplier" value="1" min="0.5" step="0.5" placeholder="Multiplier">
+        <button type="submit">Add to Plan</button>
+    </form>
+
+    <div id="meal-plan-content">
+        {% include '_meal_plan_content.html' %}
+    </div>
+</div>

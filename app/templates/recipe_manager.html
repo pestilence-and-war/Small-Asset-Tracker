@@ -9,6 +9,28 @@
     </form>
 </div>
 
+        <div class="import-section">
+            <h3>Import Recipe from Image</h3>
+            <form action="/import_recipe_from_image" method="post" enctype="multipart/form-data">
+                <input type="file" name="recipe_image" accept="image/*" required>
+                <button type="submit">Import from Image</button>
+            </form>
+        </div>
+
+<hr>
+
+<!-- Import Recipe Form -->
+<div id="import-recipe-container">
+    <h2>Import Recipe from Text</h2>
+    <form hx-post="/import_recipe_process" hx-target="#content" hx-swap="innerHTML" hx-indicator="#import-indicator">
+        <textarea name="recipe_text" rows="10" placeholder="Paste your recipe here..." required></textarea>
+        <button type="submit" class="button-primary">Import Recipe</button>
+        <span id="import-indicator" class="htmx-indicator">
+            <i>Importing... This may take a moment.</i>
+        </span>
+    </form>
+</div>
+
 <hr>
 
 <!-- Filter Meals Form -->

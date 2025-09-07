@@ -1,0 +1,21 @@
+<div id="shopping-list">
+    <h3>Shopping List</h3>
+    {% if shopping_list %}
+        {% for category, ingredients in shopping_list.items() %}
+            <div class="category-section">
+                <h4>{{ category }}</h4>
+                <ul class="shopping-list-category">
+                    {% for ingredient in ingredients %}
+                        <li>
+                            <span class="ingredient-name">{{ ingredient.name }}</span>:
+                            <span class="ingredient-quantity">{{ "%.2f"|format(ingredient.quantity) }}</span>
+                            <span class="ingredient-unit">{{ ingredient.unit }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>Your shopping list is empty. You have all the ingredients you need!</p>
+    {% endif %}
+</div>
