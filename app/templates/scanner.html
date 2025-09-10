@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPC Scanner</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        #reader {
+            width: 500px;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 1.2em;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            #reader {
+                width: 100%;
+            }
+        }
+        .success-message {
+            color: #28a745;
+            font-weight: bold;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #c3e6cb;
+            background-color: #d4edda;
+            border-radius: 5px;
+        }
+        .error-message {
+            color: #721c24;
+            font-weight: bold;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #f5c6cb;
+            background-color: #f8d7da;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/">PantryManager</a> &gt; UPC Scanner</h1>
+    </header>
+    <main>
+        <div class="container">
+            <h2>Scan Product Barcode</h2>
+            <button id="start-scan-btn" class="button-primary">Start Scanner</button>
+            <div id="reader" style="display: none;"></div>
+            <div id="result"></div>
+        </div>
+    </main>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const startScanBtn = document.getElementById('start-scan-btn');
+            const readerDiv = document.getElementById('reader');
+            const resultDiv = document.getElementById('result');
+            let html5QrcodeScanner;
+
+            startScanBtn.addEventListener('click', () => {
+                readerDiv.style.display = 'block';
+                startScanBtn.style.display = 'none';
+                resultDiv.innerHTML = '<em>Requesting camera access...</em>';
+
+                // The library is loaded from the CDN, so Html5Qrcode will be in the global scope.
+                const html5QrCode = new Html5Qrcode("reader");
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    // Important: Make sure to request the right scan types.
+                    // For UPC barcodes, we might need to experiment with formats.
+                    // We'll start with what the library supports out of the box.
+                };
+
+                // Callback for when a QR code or barcode is successfully scanned.
+                const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                    html5QrCode.stop().then((ignore) => {
+                        readerDiv.style.display = 'none';
+                        resultDiv.innerHTML = `<em>Processing UPC: ${decodedText}...</em>`;
+
+                        fetch('/api/add_item_by_upc', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ upc: decodedText }),
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                resultDiv.innerHTML = `<div class="success-message">${data.message}</div>`;
+                            } else {
+                                resultDiv.innerHTML = `<div class="error-message">Error: ${data.message}</div>`;
+                            }
+
+                            const scanAgainBtn = document.createElement('button');
+                            scanAgainBtn.textContent = 'Scan Another Item';
+                            scanAgainBtn.className = 'button-secondary';
+                            resultDiv.appendChild(scanAgainBtn);
+
+                            scanAgainBtn.addEventListener('click', () => {
+                                resultDiv.innerHTML = '';
+                                scanAgainBtn.remove();
+                                startScanBtn.style.display = 'block';
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            resultDiv.innerHTML = `<div class="error-message">An error occurred while processing the UPC. See console for details.</div>`;
+                        });
+
+                    }).catch((err) => {
+                        console.error("Failed to stop scanner", err);
+                        resultDiv.textContent = "Error stopping scanner.";
+                    });
+                };
+
+                // Start scanning.
+                html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+                    .catch((err) => {
+                        console.error("Unable to start scanning.", err);
+                        resultDiv.textContent = "ERROR: Could not start scanner. Please grant camera permissions and try again.";
+                        readerDiv.style.display = 'none';
+                        startScanBtn.style.display = 'block';
+                    });
+            });
+        });
+    </script>
+</body>
+</html>
