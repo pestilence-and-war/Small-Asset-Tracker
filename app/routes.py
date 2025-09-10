@@ -131,6 +131,77 @@ def index():
     return render_template('index.html', ingredients=ingredients, meals=meals)
 
 
+@app.route('/scanner')
+def scanner():
+    """Renders the barcode scanner page."""
+    return render_template('scanner.html')
+
+
+@app.route('/api/add_item_by_upc', methods=['POST'])
+def add_item_by_upc():
+    """
+    Handles adding an ingredient to the pantry via a UPC code.
+    Receives a JSON object with a 'upc' key.
+    """
+    data = request.get_json()
+    if not data or 'upc' not in data:
+        return jsonify({'status': 'error', 'message': 'Invalid request. Missing UPC.'}), 400
+
+    upc = data['upc']
+    conn = get_db_connection()
+    try:
+        with conn: # Use 'with' for automatic transaction management
+            # 1. Look up the UPC in our upc_data table
+            upc_item = conn.execute("SELECT name, quantity, unit FROM upc_data WHERE upc = ?", (upc,)).fetchone()
+
+            if not upc_item:
+                return jsonify({'status': 'error', 'message': f'UPC {upc} not found in database.'}), 404
+
+            item_name = upc_item['name'].strip().lower()
+            item_quantity = upc_item['quantity'] if upc_item['quantity'] is not None else 1
+            item_unit = upc_item['unit'].strip().lower() if upc_item['unit'] else 'unit'
+
+            # 2. Check if this ingredient already exists in the pantry
+            ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (item_name,)).fetchone()
+
+            if ingredient:
+                # Ingredient exists, update its quantity
+                ingredient_id = ingredient['id']
+                # Convert the quantity from the UPC data to the ingredient's base unit
+                quantity_to_add_in_base_unit, _, _ = convert_to_base(item_quantity, item_unit, ingredient_id, conn=conn)
+                conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (quantity_to_add_in_base_unit, ingredient_id))
+                message = f"Updated quantity for {item_name}."
+
+            else:
+                # Ingredient is new, create it
+                base_unit_type = get_base_unit_type(item_unit)
+                if not base_unit_type:
+                    # If the unit is unknown (e.g., 'can', 'box'), treat it as 'count'
+                    base_unit_type = 'count'
+                    base_unit = 'unit'
+                    converted_quantity = item_quantity
+                else:
+                    base_unit = get_base_unit(base_unit_type)
+                    # Convert the quantity from the UPC data to the new base unit
+                    converted_quantity, _, _ = convert_to_base(item_quantity, item_unit, conn=conn)
+
+                conn.execute(
+                    'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)',
+                    (item_name, converted_quantity, base_unit, base_unit_type)
+                )
+                message = f"Added new item: {item_name}."
+
+            return jsonify({'status': 'success', 'message': message, 'name': item_name})
+
+    except (ValueError, TypeError) as e:
+        # This can happen if unit conversion fails
+        print(f"Error in add_item_by_upc: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    except Exception as e:
+        print(f"An unexpected error occurred in add_item_by_upc: {e}")
+        return jsonify({'status': 'error', 'message': 'An internal error occurred.'}), 500
+
+
 @app.route('/pantry')
 def pantry():
     """Renders the pantry page."""
