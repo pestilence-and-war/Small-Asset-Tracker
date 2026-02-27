@@ -18,12 +18,12 @@
     <hr>
 
     <!-- Start Cooking Form -->
-    <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML">
+    <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML show:window:top">
         <input type="hidden" name="meal_id" value="{{ meal.id }}">
         <label for="portion">Portion:</label>
         <input type="number" name="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
         <button type="submit" class="button-primary">Start Cooking</button>
     </form>
 
-    <p><a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="button">Back to Recipe Manager</a></p>
+    <p><a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML show:window:top" class="button">Back to Recipe Manager</a></p>
 </div>

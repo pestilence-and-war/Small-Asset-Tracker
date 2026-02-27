@@ -2,7 +2,7 @@
     <h1>Review Imported Recipe</h1>
     <p>Please review the extracted recipe details below. You can make corrections before saving.</p>
 
-    <form hx-post="/save_imported_recipe" hx-target="#content" hx-swap="innerHTML">
+    <form hx-post="/save_imported_recipe" hx-target="#content" hx-swap="innerHTML show:window:top">
         <!-- Recipe Name -->
         <div class="form-group">
             <label for="recipe_name">Recipe Name</label>
@@ -57,7 +57,7 @@
 
         <div class="form-buttons">
             <button type="submit" class="button-primary">Save Recipe</button>
-            <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="button">Cancel</a>
+            <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML show:window:top" class="button">Cancel</a>
         </div>
     </form>
 

@@ -11,6 +11,9 @@ from app.units import (
 import os
 from werkzeug.utils import secure_filename
 from app.importer_service import import_recipe_from_text, import_recipe_from_image
+from app.api_clients.off_client import OpenFoodFactsClient
+
+off_client = OpenFoodFactsClient()
 
 def get_all_units():
     """Returns lists of mass and volume units.
@@ -134,7 +137,9 @@ def index():
 @app.route('/scanner')
 def scanner():
     """Renders the barcode scanner page."""
-    return render_template('scanner.html')
+    if 'HX-Request' in request.headers:
+        return render_template('scanner.html')
+    return render_template('index.html', page_content=render_template('scanner.html'))
 
 
 @app.route('/api/add_item_by_upc', methods=['POST'])
@@ -155,11 +160,36 @@ def add_item_by_upc():
             upc_item = conn.execute("SELECT name, quantity, unit FROM upc_data WHERE upc = ?", (upc,)).fetchone()
 
             if not upc_item:
-                return jsonify({'status': 'error', 'message': f'UPC {upc} not found in database.'}), 404
+                # 1b. If not in local DB, try Open Food Facts API
+                off_data = off_client.get_product_by_barcode(upc)
+                if not off_data:
+                    return jsonify({'status': 'error', 'message': f'UPC {upc} not found in database or external API.'}), 404
+                
+                # Sensible defaults for OFF data
+                item_name = off_data['name'].strip().lower()
+                
+                # Attempt to parse quantity from "500 g" etc. If it fails, default to 1 unit.
+                item_quantity = 1
+                item_unit = 'unit'
+                if off_data['quantity_str']:
+                    try:
+                        # Simple split, e.g., "500 g" -> (500, "g")
+                        parts = off_data['quantity_str'].split(' ', 1)
+                        if len(parts) == 2:
+                            item_quantity = parse_quantity(parts[0])
+                            item_unit = parts[1].lower()
+                    except (ValueError, TypeError):
+                        pass
 
-            item_name = upc_item['name'].strip().lower()
-            item_quantity = upc_item['quantity'] if upc_item['quantity'] is not None else 1
-            item_unit = upc_item['unit'].strip().lower() if upc_item['unit'] else 'unit'
+                # If the name is missing after all that, we can't add it.
+                if not item_name:
+                    return jsonify({'status': 'error', 'message': f'UPC {upc} found but missing a name.'}), 404
+
+            else:
+                # Found in local database
+                item_name = upc_item['name'].strip().lower()
+                item_quantity = upc_item['quantity'] if upc_item['quantity'] is not None else 1
+                item_unit = upc_item['unit'].strip().lower() if upc_item['unit'] else 'unit'
 
             # 2. Check if this ingredient already exists in the pantry
             ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (item_name,)).fetchone()

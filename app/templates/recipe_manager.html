@@ -35,7 +35,7 @@
     <section>
         <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="file-text" style="color: var(--primary);"></i> Import from Text</h2>
         <div id="import-recipe-container" class="card">
-            <form hx-post="/import_recipe_process" hx-target="#content" hx-swap="innerHTML" hx-indicator="#import-indicator">
+            <form hx-post="/import_recipe_process" hx-target="#content" hx-swap="innerHTML show:window:top" hx-indicator="#import-indicator">
                 <label for="recipe_text">Paste Recipe Text (Ingredients & Instructions)</label>
                 <textarea name="recipe_text" id="recipe_text" rows="10" placeholder="Paste your recipe here..." required style="min-height: 180px;"></textarea>
                 <button type="submit" style="width: 100%;">

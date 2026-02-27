@@ -20,17 +20,20 @@
                 <h1>Pantry Manager</h1>
             </div>
             <nav>
-                <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="nav-link active">
+                <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link active">
                     <i data-lucide="home"></i> Home
                 </a>
-                <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML" class="nav-link">
+                <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
                     <i data-lucide="package"></i> Pantry
                 </a>
-                <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="nav-link">
+                <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
                     <i data-lucide="book-open"></i> Recipes
                 </a>
-                <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML" class="nav-link">
+                <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
                     <i data-lucide="calendar"></i> Meal Plan
+                </a>
+                <a href="/scanner" hx-get="/scanner" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
+                    <i data-lucide="scan-barcode"></i> Scanner
                 </a>
                 <button type="button" onclick="openModal('converter-modal')" class="button-secondary">
                     <i data-lucide="refresh-cw"></i> Unit Converter

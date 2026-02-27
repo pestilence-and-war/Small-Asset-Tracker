@@ -9,7 +9,7 @@
             </div>
             
             <div class="meal-actions" style="display: flex; gap: 0.75rem; align-items: center;">
-                <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 0; box-shadow: none;">
+                <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML show:window:top" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 0; box-shadow: none;">
                     <input type="hidden" name="meal_id" value="{{ meal.id }}">
                     <label for="portion-{{ meal.id }}" style="margin-bottom: 0; font-size: 0.75rem; color: var(--text-muted);">Qty:</label>
                     <input type="number" name="portion" id="portion-{{ meal.id }}" value="1.0" min="0.5" step="0.5" class="portion-multiplier" style="width: 60px; padding: 0.25rem; margin-bottom: 0;">
@@ -18,7 +18,7 @@
                     </button>
                 </form>
                 
-                <a href="/recipe/{{ meal.id }}" hx-get="/recipe/{{ meal.id }}" hx-target="#content" hx-swap="innerHTML" class="button button-secondary" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                <a href="/recipe/{{ meal.id }}" hx-get="/recipe/{{ meal.id }}" hx-target="#content" hx-swap="innerHTML show:window:top" class="button button-secondary" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
                     <i data-lucide="settings" style="width: 14px; height: 14px;"></i> Edit
                 </a>
                 

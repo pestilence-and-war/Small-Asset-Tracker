@@ -5,17 +5,17 @@
     </div>
     
     <div class="quick-links" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-        <a href="/pantry" hx-get="/pantry" hx-target="#content" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+        <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
             <i data-lucide="package" style="width: 24px; height: 24px; color: var(--primary);"></i>
             <span style="font-weight: 600; color: var(--text-main);">My Pantry</span>
             <span style="font-size: 0.8125rem; font-weight: normal; text-align: left;">View and manage your current stock</span>
         </a>
-        <a href="/recipes" hx-get="/recipes" hx-target="#content" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+        <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
             <i data-lucide="book-open" style="width: 24px; height: 24px; color: var(--secondary);"></i>
             <span style="font-weight: 600; color: var(--text-main);">Recipes</span>
             <span style="font-size: 0.8125rem; font-weight: normal; text-align: left;">Browse and create new recipes</span>
         </a>
-        <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+        <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
             <i data-lucide="calendar" style="width: 24px; height: 24px; color: var(--accent);"></i>
             <span style="font-weight: 600; color: var(--text-main);">Meal Plan</span>
             <span style="font-size: 0.8125rem; font-weight: normal; text-align: left;">Plan your meals for the week</span>
@@ -27,7 +27,7 @@
     <!-- Cook a Meal Section -->
     <section>
         <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="flame" style="color: var(--accent);"></i> Ready to Cook?</h2>
-        <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML" class="card">
+        <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML show:window:top" class="card">
             <label for="meal_id">Select a meal</label>
             <select name="meal_id" id="meal_id" required>
                 <option value="">Select a meal...</option>
@@ -54,7 +54,7 @@
             {% endwith %}
         </div>
         <div style="margin-top: 1rem;">
-            <a href="/pantry" hx-get="/pantry" hx-target="#content" class="button button-secondary" style="width: 100%;">
+            <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML show:window:top" class="button button-secondary" style="width: 100%;">
                 <i data-lucide="settings"></i> Manage My Pantry
             </a>
         </div>

@@ -1,6 +1,11 @@
-<div class="pantry-header" style="margin-bottom: 2rem;">
-    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="flame" style="color: var(--accent);"></i> Cooking: {{ meal.name }}</h1>
-    <p style="color: var(--text-muted);">Scale: <strong>{{ portion }}x</strong> portion{% if portion > 1 %}s{% endif %}</p>
+<div class="pantry-header" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+        <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="flame" style="color: var(--accent);"></i> Cooking: {{ meal.name }}</h1>
+        <p style="color: var(--text-muted);">Scale: <strong>{{ portion }}x</strong> portion{% if portion > 1 %}s{% endif %}</p>
+    </div>
+    <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML show:window:top" class="button button-secondary">
+        <i data-lucide="arrow-left"></i> Back
+    </a>
 </div>
 
 {% if missing_conversions %}
@@ -89,7 +94,7 @@
         <button type="submit" style="flex: 2; padding: 1rem;">
             <i data-lucide="check-circle-2"></i> Finish & Update Pantry
         </button>
-        <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="button button-secondary" style="flex: 1; padding: 1rem;">
+        <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML show:window:top" class="button button-secondary" style="flex: 1; padding: 1rem;">
             Cancel
         </a>
     </div>
