@@ -44,12 +44,13 @@ def get_all_categories():
     ]
 
 
-def get_all_ingredients(view_name='pantry'):
+def get_all_ingredients(view_name='pantry', search_query=None):
     """Fetches all ingredients from the database, grouped by category.
 
     Args:
         view_name (str, optional): The view for which to fetch the ingredients.
             This affects the display unit. Defaults to 'pantry'.
+        search_query (str, optional): A search term to filter ingredients by name.
 
     Returns:
         dict: A dictionary of ingredients, with categories as keys and lists
@@ -57,15 +58,22 @@ def get_all_ingredients(view_name='pantry'):
     """
     conn = get_db_connection()
     # Join with ingredient_view_units to get the preferred display unit
-    query = f"""
+    sql = f"""
         SELECT
             i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
-        ORDER BY i.category, i.name
     """
-    ingredients_raw = conn.execute(query, (view_name,)).fetchall()
+    params = [view_name]
+    
+    if search_query:
+        sql += " WHERE i.name LIKE ?"
+        params.append(f"%{search_query}%")
+        
+    sql += " ORDER BY i.category, i.name"
+    
+    ingredients_raw = conn.execute(sql, tuple(params)).fetchall()
 
     ingredients_by_category = {}
     mass_units, volume_units = get_all_units()
@@ -254,8 +262,13 @@ def add_item_by_upc():
 
 @app.route('/pantry')
 def pantry():
-    """Renders the pantry page."""
-    ingredients = get_all_ingredients()
+    """Renders the pantry page or the filtered ingredients list."""
+    query = request.args.get('q')
+    ingredients = get_all_ingredients(search_query=query)
+    
+    if 'HX-Request' in request.headers and query is not None:
+        return render_template('_ingredients_list.html', ingredients=ingredients, show_edit_buttons=True)
+        
     return render_template('pantry.html', ingredients=ingredients)
 
 

@@ -52,9 +52,30 @@
 
     {% include '_converter_modal.html' %}
 
+    <button id="back-to-top" title="Go to top">
+        <i data-lucide="arrow-up"></i>
+    </button>
+
     <script>
         // Initialize Lucide icons
         lucide.createIcons();
+
+        // Back to Top Button Logic
+        const backToTopButton = document.getElementById('back-to-top');
+        window.onscroll = function() {
+            if (document.body.scrollTop > 200 || document.documentElement.scrollTop > 200) {
+                backToTopButton.classList.add('visible');
+            } else {
+                backToTopButton.classList.remove('visible');
+            }
+        };
+
+        backToTopButton.onclick = function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        };
 
         document.addEventListener('htmx:after-request', function(event) {
             // Re-initialize icons after HTMX content swap
