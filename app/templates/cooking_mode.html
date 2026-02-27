@@ -1,72 +1,98 @@
-<div class="container">
-    <h1>Cooking: {{ meal.name }} ({{ portion }}x portion)</h1>
-
-    {% if missing_conversions %}
-    <div class="warning">
-        <h4>Missing Conversions</h4>
-        <p>Could not calculate the required amount for the following ingredients because a conversion is missing:</p>
-        <ul>
-            {% for item in missing_conversions %}
-            <li>{{ item.name }} (from {{ item.unit }} to {{ item.base_unit }})</li>
-            {% endfor %}
-        </ul>
-        <p>Please add these ingredients to your pantry with the specified units to teach the app the conversion.</p>
-    </div>
-    {% endif %}
-
-    <form id="cooking-form" hx-post="/update_pantry" hx-target="#pantry-update-status" hx-swap="innerHTML">
-        <input type="hidden" name="meal_id" value="{{ meal.id }}">
-        <input type="hidden" name="portion" value="{{ portion }}">
-
-        <h3>Required Ingredients</h3>
-        <ul class="recipe-checklist">
-            {% for item in recipe_items %}
-            <li>
-                <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity_base }}">
-                <span class="ingredient-name">{{ item.ingredient.name }}</span>
-                -
-                <span class="quantity-required">{{ item.display_quantity_required | format_fraction }} {{ item.ingredient.display_unit }} required</span>
-
-                {% if item.in_stock %}
-                    <span class="status-tag in-stock">✅ In Stock ({{ item.display_quantity_pantry | format_fraction }} {{ item.ingredient.display_unit }})</span>
-                {% elif item.pantry_quantity_base > 0 %}
-                    <span class="status-tag low-stock">⚠️ Low Stock ({{ item.display_quantity_pantry | format_fraction }} {{ item.ingredient.display_unit }})</span>
-                {% else %}
-                    <span class="status-tag out-of-stock">❌ Out of Stock</span>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-
-        {% if meal.instructions %}
-        <div class="instructions-section-cooking">
-            <h3>Instructions</h3>
-            <div class="instructions-text">
-                {{ meal.instructions | safe }}
-            </div>
-        </div>
-        {% endif %}
-
-        <hr>
-
-        <!-- On-the-fly additions -->
-        <div id="side-item-adder">
-            <h4>Add side items or extra ingredients?</h4>
-            <div class="search-container">
-                <input type="search" name="q" placeholder="Search for an ingredient to add..."
-                       hx-post="/search_ingredients_for_cooking"
-                       hx-trigger="keyup changed delay:500ms, search"
-                       hx-target="#search-results-for-cooking"
-                       hx-swap="innerHTML">
-                <div id="search-results-for-cooking"></div>
-            </div>
-        </div>
-
-        <hr>
-
-        <button type="submit" class="button-primary">Finish & Update Pantry</button>
-        <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="button">Cancel</a>
-    </form>
-
-    <div id="pantry-update-status" class="update-status"></div>
+<div class="pantry-header" style="margin-bottom: 2rem;">
+    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="flame" style="color: var(--accent);"></i> Cooking: {{ meal.name }}</h1>
+    <p style="color: var(--text-muted);">Scale: <strong>{{ portion }}x</strong> portion{% if portion > 1 %}s{% endif %}</p>
 </div>
+
+{% if missing_conversions %}
+<div class="card" style="border-left: 4px solid var(--error); background: #fff1f2;">
+    <h4 style="color: var(--error); display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="alert-triangle"></i> Missing Conversions
+    </h4>
+    <p style="font-size: 0.875rem; margin-bottom: 1rem;">The following ingredients couldn't be scaled correctly:</p>
+    <ul style="font-size: 0.875rem; color: var(--text-main);">
+        {% for item in missing_conversions %}
+        <li style="margin-bottom: 0.25rem;">• {{ item.name }} ({{ item.unit }} to {{ item.base_unit }})</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<form id="cooking-form" hx-post="/update_pantry" hx-target="#pantry-update-status" hx-swap="innerHTML">
+    <input type="hidden" name="meal_id" value="{{ meal.id }}">
+    <input type="hidden" name="portion" value="{{ portion }}">
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
+        <!-- Ingredients Checklist -->
+        <section>
+            <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list-checks" style="color: var(--primary);"></i> Ingredients Checklist</h2>
+            <div class="card">
+                <ul class="recipe-checklist" style="display: grid; gap: 1rem;">
+                    {% for item in recipe_items %}
+                    <li style="display: flex; align-items: flex-start; gap: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+                        <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity_base }}" id="check-{{ item.ingredient.id }}" style="width: 20px; height: 20px; margin-top: 0.25rem;">
+                        <div style="flex: 1;">
+                            <label for="check-{{ item.ingredient.id }}" style="font-weight: 600; margin-bottom: 0.25rem;">{{ item.ingredient.name }}</label>
+                            <div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                                {{ item.display_quantity_required | format_fraction }} {{ item.ingredient.display_unit }} required
+                            </div>
+                            
+                            {% if item.in_stock %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; background: #ecfdf5; color: #065f46; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;"></i> In Stock ({{ item.display_quantity_pantry | format_fraction }})
+                                </span>
+                            {% elif item.pantry_quantity_base > 0 %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; background: #fffbeb; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                    <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i> Low ({{ item.display_quantity_pantry | format_fraction }})
+                                </span>
+                            {% else %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; background: #fef2f2; color: #991b1b; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;"></i> Out of Stock
+                                </span>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                
+                <!-- On-the-fly additions -->
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px dashed var(--border);">
+                    <h4 style="font-size: 0.9375rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-lucide="plus-square" style="color: var(--primary);"></i> Add extra items
+                    </h4>
+                    <div class="search-container">
+                        <input type="search" name="q" placeholder="Search ingredient..."
+                               hx-post="/search_ingredients_for_cooking"
+                               hx-trigger="keyup changed delay:500ms, search"
+                               hx-target="#search-results-for-cooking"
+                               hx-swap="innerHTML"
+                               style="margin-bottom: 0.5rem;">
+                        <div id="search-results-for-cooking"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Instructions -->
+        {% if meal.instructions %}
+        <section>
+            <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="book-open" style="color: var(--secondary);"></i> Instructions</h2>
+            <div class="card" style="background: #fdfdfd;">
+                <div class="instructions-text" style="line-height: 1.8; color: var(--text-main); white-space: pre-wrap;">
+                    {{ meal.instructions | safe }}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 2.5rem; display: flex; gap: 1rem; align-items: center; background: #fff; padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-lg); position: sticky; bottom: 1.5rem;">
+        <button type="submit" style="flex: 2; padding: 1rem;">
+            <i data-lucide="check-circle-2"></i> Finish & Update Pantry
+        </button>
+        <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="button button-secondary" style="flex: 1; padding: 1rem;">
+            Cancel
+        </a>
+    </div>
+</form>
+
+<div id="pantry-update-status" class="update-status" style="margin-top: 1rem;"></div>

@@ -1,21 +1,36 @@
-<h2>Available Meals</h2>
-<ul class="meals-list">
+<ul class="meals-list" style="display: grid; gap: 1rem;">
     {% for meal in meals %}
-        <li>
-            <span class="meal-name">{{ meal.name }}</span>
-            <div class="meal-actions">
-                <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML" style="display: flex; align-items: center; gap: 5px;">
+        <li class="card" style="margin-bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="background: #eef2ff; color: var(--primary); padding: 0.75rem; border-radius: var(--radius-sm);">
+                    <i data-lucide="utensils-crosses"></i>
+                </div>
+                <span class="meal-name" style="font-size: 1.125rem; font-weight: 600;">{{ meal.name }}</span>
+            </div>
+            
+            <div class="meal-actions" style="display: flex; gap: 0.75rem; align-items: center;">
+                <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 0; box-shadow: none;">
                     <input type="hidden" name="meal_id" value="{{ meal.id }}">
-                    <input type="number" name="portion" value="1.0" min="0.5" step="0.5" class="portion-multiplier">
-                    <button type="submit" class="button">Cook</button>
+                    <label for="portion-{{ meal.id }}" style="margin-bottom: 0; font-size: 0.75rem; color: var(--text-muted);">Qty:</label>
+                    <input type="number" name="portion" id="portion-{{ meal.id }}" value="1.0" min="0.5" step="0.5" class="portion-multiplier" style="width: 60px; padding: 0.25rem; margin-bottom: 0;">
+                    <button type="submit" class="button" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                        <i data-lucide="play" style="width: 14px; height: 14px;"></i> Cook
+                    </button>
                 </form>
-                <a href="/recipe/{{ meal.id }}" hx-get="/recipe/{{ meal.id }}" hx-target="#content" hx-swap="innerHTML" class="button">Manage</a>
-                <button hx-delete="/delete_meal/{{ meal.id }}" hx-target="closest li" hx-swap="outerHTML" hx-confirm="Are you sure you want to delete this meal?" class="button-danger">
-                    Delete
+                
+                <a href="/recipe/{{ meal.id }}" hx-get="/recipe/{{ meal.id }}" hx-target="#content" hx-swap="innerHTML" class="button button-secondary" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                    <i data-lucide="settings" style="width: 14px; height: 14px;"></i> Edit
+                </a>
+                
+                <button hx-delete="/delete_meal/{{ meal.id }}" hx-target="closest li" hx-swap="outerHTML" hx-confirm="Are you sure you want to delete this meal?" class="button-danger" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                 </button>
             </div>
         </li>
     {% else %}
-        <li>No meals found.</li>
+        <li class="card" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            <i data-lucide="search-x" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+            <p>No meals found matching your criteria.</p>
+        </li>
     {% endfor %}
 </ul>

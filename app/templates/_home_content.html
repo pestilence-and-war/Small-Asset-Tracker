@@ -1,33 +1,62 @@
 <div class="welcome-container">
-    <h2>Welcome to Your Pantry Manager!</h2>
-    <p>This is your central hub for managing ingredients, planning meals, and more.</p>
-    <p><strong>Get started:</strong></p>
-    <ul>
-        <li><a href="/pantry" hx-get="/pantry" hx-target="#content">Go to your Pantry</a> to add or remove ingredients.</li>
-        <li><a href="/recipes" hx-get="/recipes" hx-target="#content">Check out the Recipe Manager</a> to create new meals.</li>
-    </ul>
+    <div class="welcome-header" style="text-align: left; margin-bottom: 1.5rem;">
+        <h2 style="margin-bottom: 0.5rem; color: var(--primary);">Welcome back!</h2>
+        <p style="color: var(--text-muted); font-size: 1.1rem;">Manage your ingredients and plan your next meal with ease.</p>
+    </div>
+    
+    <div class="quick-links" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <a href="/pantry" hx-get="/pantry" hx-target="#content" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+            <i data-lucide="package" style="width: 24px; height: 24px; color: var(--primary);"></i>
+            <span style="font-weight: 600; color: var(--text-main);">My Pantry</span>
+            <span style="font-size: 0.8125rem; font-weight: normal; text-align: left;">View and manage your current stock</span>
+        </a>
+        <a href="/recipes" hx-get="/recipes" hx-target="#content" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+            <i data-lucide="book-open" style="width: 24px; height: 24px; color: var(--secondary);"></i>
+            <span style="font-weight: 600; color: var(--text-main);">Recipes</span>
+            <span style="font-size: 0.8125rem; font-weight: normal; text-align: left;">Browse and create new recipes</span>
+        </a>
+        <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" class="nav-link" style="background: #f1f5f9; padding: 1.25rem; flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+            <i data-lucide="calendar" style="width: 24px; height: 24px; color: var(--accent);"></i>
+            <span style="font-weight: 600; color: var(--text-main);">Meal Plan</span>
+            <span style="font-size: 0.8125rem; font-weight: normal; text-align: left;">Plan your meals for the week</span>
+        </a>
+    </div>
 </div>
 
-<!-- Cook a Meal Section -->
-<h2>Cook a Meal</h2>
-<form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML">
-    <select name="meal_id" required>
-        <option value="">Select a meal...</option>
-        {% for meal in meals %}
-            <option value="{{ meal.id }}">{{ meal.name }}</option>
-        {% endfor %}
-    </select>
-    <input type="number" name="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
-    <button type="submit">Start Cooking</button>
-</form>
+<div class="dashboard-sections" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
+    <!-- Cook a Meal Section -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="flame" style="color: var(--accent);"></i> Ready to Cook?</h2>
+        <form hx-post="/start_cooking_session" hx-target="#content" hx-swap="innerHTML" class="card">
+            <label for="meal_id">Select a meal</label>
+            <select name="meal_id" id="meal_id" required>
+                <option value="">Select a meal...</option>
+                {% for meal in meals %}
+                    <option value="{{ meal.id }}">{{ meal.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="portion">Portion size</label>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <input type="number" name="portion" id="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
+                <button type="submit" style="white-space: nowrap;">
+                    <i data-lucide="play-circle"></i> Start Cooking
+                </button>
+            </div>
+        </form>
+    </section>
 
-<hr>
-
-<!-- Pantry Summary -->
-<h2>Pantry Summary</h2>
-<div id="ingredient-list-container">
-    {% with show_edit_buttons=False %}
-        {% include '_ingredients_list.html' %}
-    {% endwith %}
+    <!-- Pantry Summary Section -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list" style="color: var(--primary);"></i> Pantry Overview</h2>
+        <div id="ingredient-list-container">
+            {% with show_edit_buttons=False %}
+                {% include '_ingredients_list.html' %}
+            {% endwith %}
+        </div>
+        <div style="margin-top: 1rem;">
+            <a href="/pantry" hx-get="/pantry" hx-target="#content" class="button button-secondary" style="width: 100%;">
+                <i data-lucide="settings"></i> Manage My Pantry
+            </a>
+        </div>
+    </section>
 </div>
-<a href="/pantry" hx-get="/pantry" hx-target="#content" class="button">Edit Pantry</a>

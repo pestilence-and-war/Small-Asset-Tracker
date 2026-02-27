@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pantry Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
@@ -11,13 +15,26 @@
 <body hx-boost="true">
     <div class="container">
         <header>
-            <h1>Pantry Manager</h1>
+            <div class="logo-section">
+                <i data-lucide="shopping-basket" class="logo-icon"></i>
+                <h1>Pantry Manager</h1>
+            </div>
             <nav>
-                <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="active">Home</a>
-                <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML">Pantry</a>
-                <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML">Recipes</a>
-                <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML">Meal Plan</a>
-                <button type="button" onclick="openModal('converter-modal')" class="button-secondary">Unit Converter</button>
+                <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" class="nav-link active">
+                    <i data-lucide="home"></i> Home
+                </a>
+                <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML" class="nav-link">
+                    <i data-lucide="package"></i> Pantry
+                </a>
+                <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="nav-link">
+                    <i data-lucide="book-open"></i> Recipes
+                </a>
+                <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML" class="nav-link">
+                    <i data-lucide="calendar"></i> Meal Plan
+                </a>
+                <button type="button" onclick="openModal('converter-modal')" class="button-secondary">
+                    <i data-lucide="refresh-cw"></i> Unit Converter
+                </button>
             </nav>
         </header>
 
@@ -33,7 +50,13 @@
     {% include '_converter_modal.html' %}
 
     <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
         document.addEventListener('htmx:after-request', function(event) {
+            // Re-initialize icons after HTMX content swap
+            lucide.createIcons();
+
             // Remove 'active' class from all nav links
             document.querySelectorAll('nav a').forEach(function(link) {
                 link.classList.remove('active');

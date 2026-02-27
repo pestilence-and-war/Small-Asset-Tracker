@@ -1,19 +1,30 @@
-<div class="meal-plan-container">
-    <h2>Meal Plan</h2>
+<div class="pantry-header" style="margin-bottom: 2rem;">
+    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="calendar" style="color: var(--accent);"></i> Meal Planning</h1>
+    <p style="color: var(--text-muted);">Plan your upcoming meals and generate a shopping list.</p>
+</div>
 
-    <!-- Form to add a meal to the plan -->
-    <form hx-post="/meal-plan" hx-target="#meal-plan-content" hx-swap="innerHTML">
-        <select name="meal_id" required>
-            <option value="">Select a meal...</option>
-            {% for meal in meals %}
-                <option value="{{ meal.id }}">{{ meal.name }}</option>
-            {% endfor %}
-        </select>
-        <input type="number" name="multiplier" value="1" min="0.5" step="0.5" placeholder="Multiplier">
-        <button type="submit">Add to Plan</button>
+<div class="meal-plan-management" style="margin-bottom: 2.5rem;">
+    <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="plus-circle" style="color: var(--primary);"></i> Add to Plan</h2>
+    <form hx-post="/meal-plan" hx-target="#meal-plan-content" hx-swap="innerHTML" class="card" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 2; min-width: 250px;">
+            <label for="meal_id">Select a meal</label>
+            <select name="meal_id" id="meal_id" required style="margin-bottom: 0;">
+                <option value="">Select a meal...</option>
+                {% for meal in meals %}
+                    <option value="{{ meal.id }}">{{ meal.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 120px;">
+            <label for="multiplier">Multiplier</label>
+            <input type="number" name="multiplier" id="multiplier" value="1" min="0.5" step="0.5" placeholder="1" style="margin-bottom: 0;">
+        </div>
+        <button type="submit" style="white-space: nowrap; padding: 0.75rem 1.5rem;">
+            <i data-lucide="plus"></i> Add to Plan
+        </button>
     </form>
+</div>
 
-    <div id="meal-plan-content">
-        {% include '_meal_plan_content.html' %}
-    </div>
+<div id="meal-plan-content">
+    {% include '_meal_plan_content.html' %}
 </div>

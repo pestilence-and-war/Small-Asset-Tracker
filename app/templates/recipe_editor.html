@@ -1,63 +1,92 @@
-<div class="container">
-    <h1>Edit Recipe: {{ meal.name }}</h1>
+<div class="pantry-header" style="margin-bottom: 2rem;">
+    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="edit-3" style="color: var(--primary);"></i> Edit Recipe: {{ meal.name }}</h1>
+    <p style="color: var(--text-muted);">Customize ingredients and instructions for this meal.</p>
+</div>
 
-    <div class="recipe-editor-layout">
-        <!-- Left Column: Ingredients -->
-        <div class="ingredients-section">
+<div class="recipe-editor-layout" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 2rem;">
+    <!-- Left Column: Ingredients -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="shopping-basket" style="color: var(--secondary);"></i> Recipe Ingredients</h2>
+        <div class="card">
             <!-- Ingredients in this meal -->
-            <div id="meal-ingredients-list">
+            <div id="meal-ingredients-list" style="margin-bottom: 1.5rem;">
                 {% include '_meal_ingredients_list.html' %}
             </div>
-            <hr>
-            <!-- Add ingredient to meal -->
-            <div id="add-ingredient-to-meal-container">
-                <h2>Add Ingredient to Recipe</h2>
+            
+            <div style="border-top: 2px dashed var(--border); padding-top: 1.5rem; margin-top: 1.5rem;">
+                <h3 style="font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="plus-circle" style="color: var(--primary);"></i> Add Ingredient to Recipe
+                </h3>
                 <form hx-post="/add_ingredient_to_meal/{{ meal.id }}" hx-target="#meal-ingredients-list" hx-swap="innerHTML">
-                    <div class="search-container">
-                        <input id="ingredient-search-input" type="search" name="q" placeholder="Search for an ingredient to add..."
+                    <div class="search-container" style="position: relative; margin-bottom: 1rem;">
+                        <input id="ingredient-search-input" type="search" name="q" placeholder="Search for an ingredient..."
                                hx-post="/search_ingredients_for_recipe/{{ meal.id }}"
                                hx-trigger="keyup changed delay:500ms, search"
                                hx-target="#search-results-for-recipe"
-                               hx-swap="innerHTML">
-                        <div id="search-results-for-recipe"></div>
+                               hx-swap="innerHTML"
+                               autocomplete="off"
+                               style="margin-bottom: 0;">
+                        <div id="search-results-for-recipe" class="search-results" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 10; box-shadow: var(--shadow-lg);"></div>
                     </div>
-                    <input type="text" name="quantity" placeholder="Quantity" required>
-                    <input type="text" name="unit" placeholder="Unit (e.g., cup, g, oz)" required>
-                    <button type="submit" class="button-primary">Add to Recipe</button>
+                    
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="flex: 1;">
+                            <label for="quantity">Amount</label>
+                            <input type="text" name="quantity" id="quantity" placeholder="e.g., 2.5" required style="margin-bottom: 0;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="unit">Unit</label>
+                            <input type="text" name="unit" id="unit" placeholder="e.g., cups" required style="margin-bottom: 0;">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" style="width: 100%;">
+                        <i data-lucide="plus"></i> Add to Recipe
+                    </button>
                 </form>
             </div>
         </div>
+    </section>
 
-        <!-- Right Column: Instructions -->
-        <div class="instructions-section">
-            <h2>Instructions</h2>
-            <form>
+    <!-- Right Column: Instructions -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list-ordered" style="color: var(--accent);"></i> Cooking Instructions</h2>
+        <div class="card" style="height: calc(100% - 3.5rem); display: flex; flex-direction: column;">
+            <form style="flex: 1; display: flex; flex-direction: column; padding: 0; border: none; box-shadow: none; margin-bottom: 0;">
                 <textarea name="instructions"
                           class="instructions-textarea"
-                          placeholder="Enter recipe instructions here..."
+                          placeholder="Write your step-by-step instructions here..."
                           hx-post="/update_instructions/{{ meal.id }}"
-                          hx-trigger="keyup changed delay:500ms"
+                          hx-trigger="keyup changed delay:1000ms"
                           hx-swap="none"
-                          hx-indicator="#saving-indicator">{{ meal.instructions or '' }}</textarea>
+                          hx-indicator="#saving-indicator"
+                          style="flex: 1; min-height: 400px; padding: 1rem; font-family: inherit; font-size: 0.9375rem; border: 1px solid var(--border); border-radius: var(--radius-sm);">{{ meal.instructions or '' }}</textarea>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <span id="saving-indicator" class="htmx-indicator">
-                        <i>Saving...</i>
-                    </span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <div id="saving-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary); font-size: 0.875rem; font-weight: 500;">
+                        <i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i>
+                        <span>Autosaving...</span>
+                    </div>
                     <button hx-post="/update_instructions/{{ meal.id }}"
                             hx-swap="none"
                             hx-include="[name='instructions']"
-                            class="button">
-                        Save Instructions
+                            class="button button-secondary"
+                            style="padding: 0.5rem 1rem;">
+                        <i data-lucide="save"></i> Force Save
                     </button>
                 </div>
             </form>
         </div>
-    </div>
-
-    <div id="user-prompts"></div>
-
-    <p><a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="button">Back to Recipe Manager</a></p>
+    </section>
 </div>
 
-{% include '_converter_modal.html' %}
+<div id="user-prompts"></div>
+
+<div style="margin-top: 2rem; display: flex; gap: 1rem;">
+    <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML" class="button button-secondary">
+        <i data-lucide="arrow-left"></i> Back to Recipes
+    </a>
+    <button type="button" onclick="openModal('converter-modal')" class="button-secondary">
+        <i data-lucide="refresh-cw"></i> Unit Converter
+    </button>
+</div>

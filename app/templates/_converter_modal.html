@@ -1,70 +1,67 @@
 <div id="converter-modal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h2>Unit Converter</h2>
-      <span class="close-modal" onclick="closeModal('converter-modal')">&times;</span>
+      <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="refresh-cw" style="color: var(--primary);"></i> Unit Converter</h2>
+      <span class="close-modal" onclick="closeModal('converter-modal')"><i data-lucide="x"></i></span>
     </div>
     <div class="modal-body">
-      <div class="tab">
-        <button class="tablinks active" onclick="openTab(event, 'Converter')">Converter</button>
-        <button class="tablinks" onclick="openTab(event, 'Density')">Density Calculator</button>
+      <div class="tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: #f1f5f9; padding: 0.25rem; border-radius: var(--radius-sm);">
+        <button class="tab-btn active" onclick="openTab(event, 'Converter')" style="flex: 1; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: var(--transition);">Converter</button>
+        <button class="tab-btn" onclick="openTab(event, 'Density')" style="flex: 1; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: var(--transition); background: transparent; color: var(--text-muted);">Density Calculator</button>
       </div>
 
       <div id="Converter" class="tabcontent" style="display:block;">
-        <h3>General Unit Converter</h3>
-        <p>Convert between any two units for an ingredient.</p>
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">Convert between any two units for an ingredient.</p>
         <form id="general-converter-form"
               hx-post="/calculate_conversion"
               hx-target="#converter-result-container"
               hx-swap="innerHTML">
-          <div class="form-grid">
+          <div class="form-grid" style="display: grid; gap: 1rem;">
             <div class="form-group">
                 <label for="converter-ingredient">Ingredient</label>
-                <input id="converter-ingredient" type="search" name="ingredient_name" placeholder="e.g., flour"
-                       hx-post="/search_for_converter" hx-trigger="keyup changed delay:500ms"
-                       hx-target="#converter-ingredient-search-results" hx-swap="innerHTML">
-                <div id="converter-ingredient-search-results" class="search-results"></div>
+                <div style="position: relative;">
+                    <input id="converter-ingredient" type="search" name="ingredient_name" placeholder="e.g., flour"
+                           hx-post="/search_for_converter" hx-trigger="keyup changed delay:500ms"
+                           hx-target="#converter-ingredient-search-results" hx-swap="innerHTML" style="margin-bottom: 0;">
+                    <div id="converter-ingredient-search-results" class="search-results" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 10; box-shadow: var(--shadow-lg);"></div>
+                </div>
                 <input type="hidden" name="ingredient_id" id="converter-ingredient-id">
             </div>
-            <div class="form-group">
-              <label for="from-qty">From</label>
-              <input type="number" id="from-qty" name="from_quantity" step="any" required>
+            
+            <div style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                  <label for="from-qty">Amount</label>
+                  <input type="number" id="from-qty" name="from_quantity" step="any" required placeholder="1.0" style="margin-bottom: 0;">
+                </div>
+                <div style="flex: 1;">
+                  <label for="from-unit">From Unit</label>
+                  <select id="from-unit" name="from_unit" required style="margin-bottom: 0;">
+                    <optgroup label="Mass">
+                      <option value="g">Grams (g)</option>
+                      <option value="kg">Kilograms (kg)</option>
+                      <option value="lb">Pounds (lb)</option>
+                      <option value="oz">Ounces (oz)</option>
+                    </optgroup>
+                    <optgroup label="Volume">
+                      <option value="ml">Milliliters (ml)</option>
+                      <option value="l">Liters (l)</option>
+                      <option value="cup">Cups</option>
+                      <option value="tbsp">Tablespoons</option>
+                      <option value="tsp">Teaspoons</option>
+                    </optgroup>
+                  </select>
+                </div>
             </div>
+
             <div class="form-group">
-              <label for="from-unit">Unit</label>
-              <select id="from-unit" name="from_unit" required>
-                <optgroup label="Mass">
-                  <option value="g">Grams (g)</option>
-                  <option value="kg">Kilograms (kg)</option>
-                  <option value="lb">Pounds (lb)</option>
-                  <option value="oz">Ounces (oz)</option>
-                </optgroup>
-                <optgroup label="Volume">
-                  <option value="ml">Milliliters (ml)</option>
-                  <option value="l">Liters (l)</option>
-                  <option value="cc">Cubic cm (cc)</option>
-                  <option value="cup">Cups</option>
-                  <option value="tbsp">Tablespoons (tbsp)</option>
-                  <option value="tsp">Teaspoons (tsp)</option>
-                  <option value="gallon">Gallons</option>
-                  <option value="quart">Quarts</option>
-                  <option value="pint">Pints</option>
-                </optgroup>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="to-unit">To</label>
+              <label for="to-unit">To Unit</label>
               <select id="to-unit" name="to_unit" required>
                 <optgroup label="Volume">
                   <option value="cup">Cups</option>
-                  <option value="tbsp">Tablespoons (tbsp)</option>
-                  <option value="tsp">Teaspoons (tsp)</option>
+                  <option value="tbsp">Tablespoons</option>
+                  <option value="tsp">Teaspoons</option>
                   <option value="ml">Milliliters (ml)</option>
                   <option value="l">Liters (l)</option>
-                  <option value="cc">Cubic cm (cc)</option>
-                  <option value="gallon">Gallons</option>
-                  <option value="quart">Quarts</option>
-                  <option value="pint">Pints</option>
                 </optgroup>
                 <optgroup label="Mass">
                   <option value="g">Grams (g)</option>
@@ -75,43 +72,56 @@
               </select>
             </div>
           </div>
-          <button type="submit">Convert</button>
+          <button type="submit" style="width: 100%;">
+            <i data-lucide="calculator"></i> Calculate Conversion
+          </button>
         </form>
-        <div id="converter-result-container" class="result-container"></div>
+        <div id="converter-result-container" class="result-container" style="margin-top: 1.5rem;"></div>
       </div>
 
-      <div id="Density" class="tabcontent">
-        <h3>Density Calculator</h3>
-        <p>Use this if you know a volume-to-mass relationship (e.g., "1 cup of flour is 120g").</p>
+      <div id="Density" class="tabcontent" style="display:none;">
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">Calculate density from a known volume-to-mass relationship (e.g., "1 cup of flour is 120g").</p>
         <form id="density-calculator-form"
               hx-post="/calculate_density"
               hx-target="#density-result-container"
               hx-swap="innerHTML">
-          <div class="form-grid">
-            <div class="form-group">
-              <input type="number" name="vol_qty" value="1" step="any" required>
-              <select name="vol_unit" required>
-                  <option value="cup">Cup</option>
-                  <option value="tbsp">Tablespoon</option>
-                  <option value="tsp">Teaspoon</option>
-                  <option value="ml">Milliliter</option>
-                  <option value="l">Liter</option>
-              </select>
+          <div class="form-grid" style="display: grid; gap: 1rem;">
+            <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label>Volume</label>
+                    <input type="number" name="vol_qty" value="1" step="any" required style="margin-bottom: 0;">
+                </div>
+                <div style="flex: 1;">
+                    <select name="vol_unit" required style="margin-bottom: 0;">
+                        <option value="cup">Cup</option>
+                        <option value="tbsp">Tablespoon</option>
+                        <option value="tsp">Teaspoon</option>
+                        <option value="ml">Milliliter</option>
+                        <option value="l">Liter</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group density-equals">
-              <span>=</span>
-            </div>
-            <div class="form-group">
-              <input type="number" name="mass_qty" placeholder="e.g., 120" step="any" required>
-              <select name="mass_unit" required>
-                  <option value="g">Grams (g)</option>
-                  <option value="oz">Ounces (oz)</option>
-              </select>
+            
+            <div style="text-align: center; font-weight: 600; color: var(--text-muted);">is equal to</div>
+            
+            <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label>Mass</label>
+                    <input type="number" name="mass_qty" placeholder="e.g., 120" step="any" required style="margin-bottom: 0;">
+                </div>
+                <div style="flex: 1;">
+                    <select name="mass_unit" required style="margin-bottom: 0;">
+                        <option value="g">Grams (g)</option>
+                        <option value="oz">Ounces (oz)</option>
+                    </select>
+                </div>
             </div>
           </div>
-          <button type="submit">Calculate Density</button>
+          <button type="submit" style="width: 100%; margin-top: 1.5rem;" class="button-secondary">
+            <i data-lucide="scale"></i> Get Density Value
+          </button>
         </form>
-        <div id="density-result-container" class="result-container"></div>
+        <div id="density-result-container" class="result-container" style="margin-top: 1.5rem;"></div>
       </div>
     </div>
   </div>
@@ -124,12 +134,17 @@ function openTab(evt, tabName) {
   for (i = 0; i < tabcontent.length; i++) {
     tabcontent[i].style.display = "none";
   }
-  tablinks = document.getElementsByClassName("tablinks");
+  tablinks = document.getElementsByClassName("tab-btn");
   for (i = 0; i < tablinks.length; i++) {
-    tablinks[i].className = tablinks[i].className.replace(" active", "");
+    tablinks[i].classList.remove("active");
+    tablinks[i].style.background = "transparent";
+    tablinks[i].style.color = "var(--text-muted)";
   }
   document.getElementById(tabName).style.display = "block";
-  evt.currentTarget.className += " active";
+  evt.currentTarget.classList.add("active");
+  evt.currentTarget.style.background = "#fff";
+  evt.currentTarget.style.color = "var(--primary)";
+  evt.currentTarget.style.boxShadow = "var(--shadow-sm)";
 }
 
 function selectConverterIngredient(ingredientId, ingredientName) {
