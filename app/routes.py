@@ -156,8 +156,13 @@ def add_item_by_upc():
     conn = get_db_connection()
     try:
         with conn: # Use 'with' for automatic transaction management
-            # 1. Look up the UPC in our upc_data table
-            upc_item = conn.execute("SELECT name, quantity, unit FROM upc_data WHERE upc = ?", (upc,)).fetchone()
+            # 1. Look up the UPC in our upc_data table (if it exists)
+            upc_item = None
+            try:
+                upc_item = conn.execute("SELECT name, quantity, unit FROM upc_data WHERE upc = ?", (upc,)).fetchone()
+            except sqlite3.OperationalError:
+                # Table doesn't exist yet, move to API lookup
+                pass
 
             if not upc_item:
                 # 1b. If not in local DB, try Open Food Facts API
@@ -168,6 +173,18 @@ def add_item_by_upc():
                 # Sensible defaults for OFF data
                 item_name = off_data['name'].strip().lower()
                 
+                # Auto-detect category
+                category = off_data['category']
+                density = 1.0 if off_data['unit_hint'] == 'volume' else None # Default 1.0 for liquids
+                
+                # Map some OFF categories to our local ones
+                cat_map = {
+                    "Beverages": "Beverages", "Sodas": "Beverages", "Waters": "Beverages", "Fruit Juices": "Beverages",
+                    "Canned Foods": "Canned Goods", "Plant Based Foods": "Fresh Produce",
+                    "Groceries": "Pantry", "Snacks": "Snacks", "Condiments": "Condiments"
+                }
+                local_category = cat_map.get(category, "Other")
+
                 # Attempt to parse quantity from "500 g" etc. If it fails, default to 1 unit.
                 item_quantity = 1
                 item_unit = 'unit'
@@ -190,6 +207,8 @@ def add_item_by_upc():
                 item_name = upc_item['name'].strip().lower()
                 item_quantity = upc_item['quantity'] if upc_item['quantity'] is not None else 1
                 item_unit = upc_item['unit'].strip().lower() if upc_item['unit'] else 'unit'
+                local_category = "Other"
+                density = None
 
             # 2. Check if this ingredient already exists in the pantry
             ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (item_name,)).fetchone()
@@ -213,13 +232,14 @@ def add_item_by_upc():
                 else:
                     base_unit = get_base_unit(base_unit_type)
                     # Convert the quantity from the UPC data to the new base unit
-                    converted_quantity, _, _ = convert_to_base(item_quantity, item_unit, conn=conn)
+                    # For new ingredients, we need to pass density if it's available
+                    converted_quantity, _, _ = convert_to_base(item_quantity, item_unit, density_g_ml=density, conn=conn)
 
                 conn.execute(
-                    'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type) VALUES (?, ?, ?, ?)',
-                    (item_name, converted_quantity, base_unit, base_unit_type)
+                    'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, category, density_g_ml) VALUES (?, ?, ?, ?, ?, ?)',
+                    (item_name, converted_quantity, base_unit, base_unit_type, local_category, density)
                 )
-                message = f"Added new item: {item_name}."
+                message = f"Added new item: {item_name} (Category: {local_category})."
 
             return jsonify({'status': 'success', 'message': message, 'name': item_name})
 

@@ -102,6 +102,14 @@ def init_db():
             FOREIGN KEY (meal_id) REFERENCES meals (id)
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS upc_data (
+            upc TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity REAL,
+            unit TEXT
+        )
+    ''')
     # Add category column to ingredients if it doesn't exist
     try:
         conn.execute('SELECT category FROM ingredients LIMIT 1').fetchall()
