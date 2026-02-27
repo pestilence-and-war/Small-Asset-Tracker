@@ -13,6 +13,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body hx-boost="true">
+    <div id="scroll-sentinel" style="position: absolute; top: 0; height: 1px; width: 1px; pointer-events: none;"></div>
     <div class="container">
         <header>
             <div class="logo-section">
@@ -77,15 +78,20 @@
             });
         };
 
-        // Header Shrink Logic
+        // Header Shrink Logic using IntersectionObserver (Fixes Flashing)
         const header = document.querySelector('header');
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 50) {
+        const sentinel = document.getElementById('scroll-sentinel');
+        
+        const observer = new IntersectionObserver((entries) => {
+            // When sentinel is NOT intersecting (scrolled down), add class
+            if (!entries[0].isIntersecting) {
                 header.classList.add('scrolled');
             } else {
                 header.classList.remove('scrolled');
             }
-        }, { passive: true });
+        }, { threshold: [0] });
+
+        observer.observe(sentinel);
 
         document.addEventListener('htmx:after-request', function(event) {
             // Re-initialize icons after HTMX content swap

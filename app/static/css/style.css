@@ -51,29 +51,29 @@ h3 { font-size: 1.125rem; }
 
 /* Header & Navigation Refinement */
 header {
-    background: var(--bg-card);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
     padding: 1rem 1.5rem;
     border-radius: var(--radius);
-    margin-bottom: 2.5rem;
+    margin-bottom: 2rem;
     box-shadow: var(--shadow);
     display: flex;
     justify-content: space-between;
     align-items: center;
     border: 1px solid var(--border);
     position: sticky;
-    top: 1rem;
+    top: 0;
     z-index: 100;
-    transition: padding 0.3s var(--transition), top 0.3s var(--transition), border-radius 0.3s var(--transition);
+    transition: padding 0.3s var(--transition), top 0.3s var(--transition), border-radius 0.3s var(--transition), margin 0.3s var(--transition);
 }
 
 /* Compact Scrolled State for Mobile-First Efficiency */
 header.scrolled {
-    top: 0;
     padding: 0.5rem;
     border-radius: 0 0 var(--radius) var(--radius);
     box-shadow: var(--shadow-lg);
     border-top: none;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem; /* Keep margin consistent to prevent layout shift */
 }
 
 header.scrolled .logo-section {
