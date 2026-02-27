@@ -102,7 +102,7 @@ def get_base_unit(unit_type):
     return None
 
 
-def convert_to_base(quantity, unit, ingredient_id=None, conn=None):
+def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=None):
     """Converts a given quantity and unit to its base unit quantity.
 
     The base units are 'g' for mass, 'ml' for volume, and 'unit' for count.
@@ -114,6 +114,8 @@ def convert_to_base(quantity, unit, ingredient_id=None, conn=None):
         unit (str): The unit of the quantity.
         ingredient_id (int, optional): The ID of the ingredient, used for
             density-based conversions. Defaults to None.
+        density_g_ml (float, optional): A provided density value to use
+            if ingredient_id is not provided. Defaults to None.
         conn (sqlite3.Connection, optional): The database connection. If not
             provided, a new one will be created. Defaults to None.
 
@@ -163,11 +165,13 @@ def convert_to_base(quantity, unit, ingredient_id=None, conn=None):
 
         # Case 2: Different unit types (mass to volume or volume to mass)
         if source_unit_type != target_base_unit_type and {source_unit_type, target_base_unit_type} == {'mass', 'volume'}:
-            if not ingredient or not ingredient['density_g_ml']:
+            density = density_g_ml
+            if ingredient and ingredient['density_g_ml']:
+                density = ingredient['density_g_ml']
+
+            if not density:
                 # This is the error that the user was seeing.
                 raise ValueError(f"Cannot convert between mass and volume for '{ingredient['name'] if ingredient else 'this ingredient'}' without a density.")
-
-            density = ingredient['density_g_ml']
 
             # Path: Source -> ml -> g -> Target Base Unit
             quantity_in_ml = 0
