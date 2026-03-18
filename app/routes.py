@@ -2,7 +2,7 @@ import time
 from flask import render_template, request, make_response, jsonify
 from app import app
 from app.database import get_db_connection
-from thefuzz import process
+from thefuzz import process, fuzz
 from app.units import (
     convert_to_base, needs_conversion_prompt, get_conversion_prompt_html,
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
@@ -349,7 +349,7 @@ def search():
 
         # Use thefuzz to find best matches
         # We extract tuples of (name, score)
-        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5, scorer=fuzz.token_set_ratio)
 
         # Get the full ingredient object for each match
         conn = get_db_connection()
@@ -376,7 +376,7 @@ def search_pantry_ingredients():
         conn.close()
 
         all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5, scorer=fuzz.token_set_ratio)
 
         conn = get_db_connection()
 
@@ -573,6 +573,30 @@ def start_cooking_session():
             display_quantity_required = convert_units(required_quantity_base, item['base_unit'], display_unit, item['id'])
             display_quantity_pantry = convert_units(item['pantry_quantity'], item['base_unit'], display_unit, item['id'])
 
+            # Fetch available options (parent and children)
+            options_raw = conn.execute("""
+                SELECT id, name, quantity, base_unit 
+                FROM ingredients 
+                WHERE id = ? OR parent_id = ?
+            """, (item['id'], item['id'])).fetchall()
+            
+            available_options = []
+            for opt in options_raw:
+                # Convert stock to display unit
+                try:
+                    stock_display = convert_units(opt['quantity'], opt['base_unit'], display_unit, opt['id'], conn=conn)
+                    stock_text = f"{stock_display:.2f} {display_unit} available"
+                except ValueError:
+                    stock_text = f"{opt['quantity']:.2f} {opt['base_unit']} available (conversion error)"
+                
+                available_options.append({
+                    "id": opt['id'],
+                    "name": opt['name'],
+                    "stock_text": stock_text,
+                    "quantity_base": opt['quantity'],
+                    "selected": opt['id'] == item['id']
+                })
+
             recipe_items.append({
                 "ingredient": {
                     "id": item['id'],
@@ -583,7 +607,8 @@ def start_cooking_session():
                 "display_quantity_pantry": display_quantity_pantry,
                 "required_quantity_base": required_quantity_base, # For pantry deduction
                 "pantry_quantity_base": item['pantry_quantity'], # For stock status logic
-                "in_stock": item['pantry_quantity'] >= required_quantity_base
+                "in_stock": item['pantry_quantity'] >= required_quantity_base,
+                "available_options": available_options
             })
         except ValueError as e:
             print(f"Could not convert {item['name']} for cooking session: {e}")
@@ -617,7 +642,7 @@ def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
     conn = get_db_connection()
     query = f"""
         SELECT
-            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml,
+            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml, i.parent_id,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
@@ -710,7 +735,12 @@ def edit_ingredient_form(ing_id):
     view_name = request.args.get('view_name', 'pantry')
     ingredient = get_ingredient_by_id(ing_id, view_name, for_editing=True)
     categories = get_all_categories()
-    return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name, categories=categories)
+    
+    conn = get_db_connection()
+    potential_parents = conn.execute("SELECT id, name FROM ingredients WHERE id != ? AND parent_id IS NULL ORDER BY name", (ing_id,)).fetchall()
+    conn.close()
+    
+    return render_template('_edit_ingredient_form.html', ingredient=ingredient, view_name=view_name, categories=categories, potential_parents=potential_parents)
 
 
 @app.route('/edit_ingredient/<int:ing_id>', methods=['POST'])
@@ -726,6 +756,11 @@ def edit_ingredient(ing_id):
     new_quantity_str = request.form.get('quantity', '0')
     new_unit = request.form.get('unit')
     new_category = request.form.get('category')
+    parent_id = request.form.get('parent_id')
+    if not parent_id:
+        parent_id = None
+    else:
+        parent_id = int(parent_id)
 
     if not new_name or not new_unit:
         ingredient = get_ingredient_by_id(ing_id, view_name)
@@ -750,12 +785,12 @@ def edit_ingredient(ing_id):
                 if new_unit_type != current_base_unit_type:
                     quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, conn=conn)
                     conn.execute(
-                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ? WHERE id = ?",
-                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, ing_id)
+                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ?, parent_id = ? WHERE id = ?",
+                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, parent_id, ing_id)
                     )
                 else:
                     quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
-                    conn.execute("UPDATE ingredients SET name = ?, quantity = ?, category = ? WHERE id = ?", (new_name, quantity_in_base, new_category, ing_id))
+                    conn.execute("UPDATE ingredients SET name = ?, quantity = ?, category = ?, parent_id = ? WHERE id = ?", (new_name, quantity_in_base, new_category, parent_id, ing_id))
 
                 conn.execute("""
                     INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
@@ -775,8 +810,8 @@ def edit_ingredient(ing_id):
                 else: # Density exists
                     quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
                     conn.execute(
-                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ? WHERE id = ?",
-                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, ing_id)
+                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ?, parent_id = ? WHERE id = ?",
+                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, parent_id, ing_id)
                     )
                     conn.execute("""
                         INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
@@ -1162,7 +1197,7 @@ def search_for_converter():
         conn.close()
 
         all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5, scorer=fuzz.token_set_ratio)
 
         conn = get_db_connection()
         for name, score in matches:
@@ -1438,7 +1473,7 @@ def search_ingredients_for_recipe(meal_id):
         conn.close()
 
         all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5, scorer=fuzz.token_set_ratio)
 
         conn = get_db_connection()
         for name, score in matches:
@@ -1491,7 +1526,7 @@ def search_ingredients_for_cooking():
         conn.close()
 
         all_ingredients_map = {ing['name']: ing['id'] for ing in all_ingredients_raw}
-        matches = process.extract(query, all_ingredients_map.keys(), limit=5)
+        matches = process.extract(query, all_ingredients_map.keys(), limit=5, scorer=fuzz.token_set_ratio)
 
         conn = get_db_connection()
         for name, score in matches:
@@ -1516,21 +1551,44 @@ def add_ingredient_to_cooking_session():
 @app.route('/update_pantry', methods=['POST'])
 def update_pantry():
     """Updates the pantry by deducting the quantities of ingredients used in a cooking session."""
-    # A list of strings like "ingredient_id_quantity_to_deduct"
+    # A list of strings like "ingredient_id_quantity_to_deduct" from extra additions
     ingredients_used = request.form.getlist('ingredient_used')
+    # A list of recipe ingredient IDs that were checked
+    recipe_items_used = request.form.getlist('recipe_items_used')
 
-    if not ingredients_used:
+    if not ingredients_used and not recipe_items_used:
         return "Nothing to update."
 
     conn = get_db_connection()
     try:
         with conn: # Use a transaction
+            # Process extra items added on the fly
             for item in ingredients_used:
                 ingredient_id, quantity_to_deduct = item.split('_')
                 conn.execute(
                     "UPDATE ingredients SET quantity = quantity - ? WHERE id = ?",
                     (float(quantity_to_deduct), int(ingredient_id))
                 )
+            
+            # Process dynamic recipe items
+            for recipe_ing_id in recipe_items_used:
+                deduct_ing_id = request.form.get(f'ingredient_id_to_deduct_for_{recipe_ing_id}')
+                deduct_qty_str = request.form.get(f'ingredient_qty_for_{recipe_ing_id}')
+                deduct_unit = request.form.get(f'ingredient_unit_for_{recipe_ing_id}')
+                
+                if deduct_ing_id and deduct_qty_str and deduct_unit:
+                    try:
+                        deduct_qty = float(deduct_qty_str)
+                        if deduct_qty > 0:
+                            # Convert from the display unit back to the chosen ingredient's base unit
+                            qty_in_base, _, _ = convert_to_base(deduct_qty, deduct_unit, int(deduct_ing_id), conn=conn)
+                            conn.execute(
+                                "UPDATE ingredients SET quantity = quantity - ? WHERE id = ?",
+                                (qty_in_base, int(deduct_ing_id))
+                            )
+                    except ValueError as e:
+                        print(f"Error converting dynamic recipe item {recipe_ing_id}: {e}")
+
         response = make_response()
         response.headers['HX-Redirect'] = '/'
         return response
@@ -1734,11 +1792,21 @@ def generate_shopping_list(meal_plan_id):
 
     shopping_list = {}
     for ingredient_id, total_required in required_ingredients.items():
-        # Get pantry quantity
+        # Get pantry quantity (including children)
         ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-        pantry_quantity = ingredient['quantity']
+        
+        # Calculate total available stock (parent + children)
+        total_pantry_quantity = ingredient['quantity']
+        children = conn.execute("SELECT id, quantity, base_unit FROM ingredients WHERE parent_id = ?", (ingredient_id,)).fetchall()
+        for child in children:
+            try:
+                child_qty_in_parent_base = convert_units(child['quantity'], child['base_unit'], ingredient['base_unit'], child['id'], conn=conn)
+                total_pantry_quantity += child_qty_in_parent_base
+            except ValueError:
+                # If conversion fails, maybe ignore child quantity or add it as-is (safer to ignore to prevent incorrect deductions)
+                pass
 
-        needed = total_required - pantry_quantity
+        needed = total_required - total_pantry_quantity
         if needed > 0:
             # Get display unit for the shopping list
             display_unit_row = conn.execute(

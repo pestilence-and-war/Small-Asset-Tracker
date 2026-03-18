@@ -135,6 +135,20 @@
                 event.target.style.display = 'none';
             }
         }
+
+        // Close search results if clicked outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.search-container')) {
+                document.querySelectorAll('.search-results').forEach(el => el.innerHTML = '');
+                // Also clear results that might not have the search-results class but are used for search
+                const cookingResults = document.getElementById('search-results-for-cooking');
+                if (cookingResults) cookingResults.innerHTML = '';
+                const recipeResults = document.getElementById('search-results-for-recipe');
+                if (recipeResults) recipeResults.innerHTML = '';
+                const pantryResults = document.getElementById('search-results');
+                if (pantryResults) pantryResults.innerHTML = '';
+            }
+        });
     </script>
 </body>
 </html>

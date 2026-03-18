@@ -34,6 +34,18 @@
             </select>
         </div>
         
+        <div style="flex: 1;">
+            <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">Generic Parent (Optional)</label>
+            <select name="parent_id" style="margin-bottom: 0;">
+                <option value="">-- None --</option>
+                {% for parent in potential_parents %}
+                <option value="{{ parent.id }}" {% if parent.id == ingredient.parent_id %}selected{% endif %}>
+                    {{ parent.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        
         <div style="display: flex; gap: 0.5rem;">
             <button type="submit" style="padding: 0.5rem 1rem;">
                 <i data-lucide="check" style="width: 14px; height: 14px;"></i> Save

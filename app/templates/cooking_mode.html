@@ -34,20 +34,35 @@
                 <ul class="recipe-checklist" style="display: grid; gap: 1rem;">
                     {% for item in recipe_items %}
                     <li style="display: flex; align-items: flex-start; gap: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
-                        <input type="checkbox" name="ingredient_used" value="{{ item.ingredient.id }}_{{ item.required_quantity_base }}" id="check-{{ item.ingredient.id }}" style="width: 20px; height: 20px; margin-top: 0.25rem;">
+                        <input type="checkbox" name="recipe_items_used" value="{{ item.ingredient.id }}" id="check-{{ item.ingredient.id }}" style="width: 20px; height: 20px; margin-top: 0.25rem;" checked>
                         <div style="flex: 1;">
-                            <label for="check-{{ item.ingredient.id }}" style="font-weight: 600; margin-bottom: 0.25rem;">{{ item.ingredient.name }}</label>
-                            <div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                                {{ item.display_quantity_required | format_fraction }} {{ item.ingredient.display_unit }} required
+                            <label for="check-{{ item.ingredient.id }}" style="font-weight: 600; margin-bottom: 0.25rem; display: block;">
+                                {{ item.ingredient.name }}
+                                <span style="font-weight: normal; font-size: 0.875rem; color: var(--text-muted);">
+                                    (Recipe requires {{ item.display_quantity_required | format_fraction }} {{ item.ingredient.display_unit }})
+                                </span>
+                            </label>
+
+                            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                                <select name="ingredient_id_to_deduct_for_{{ item.ingredient.id }}" style="flex: 2; margin-bottom: 0; padding: 0.25rem;">
+                                    {% for option in item.available_options %}
+                                    <option value="{{ option.id }}" {% if option.selected %}selected{% endif %}>
+                                        {{ option.name }} ({{ option.stock_text }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <input type="number" step="any" name="ingredient_qty_for_{{ item.ingredient.id }}" value="{{ '%.2f'|format(item.display_quantity_required) }}" style="flex: 1; margin-bottom: 0; padding: 0.25rem;">
+                                <input type="hidden" name="ingredient_unit_for_{{ item.ingredient.id }}" value="{{ item.ingredient.display_unit }}">
+                                <span style="font-size: 0.875rem; color: var(--text-muted);">{{ item.ingredient.display_unit }}</span>
                             </div>
                             
                             {% if item.in_stock %}
                                 <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; background: #ecfdf5; color: #065f46; padding: 0.25rem 0.5rem; border-radius: 4px;">
-                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;"></i> In Stock ({{ item.display_quantity_pantry | format_fraction }})
+                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;"></i> Stock OK
                                 </span>
                             {% elif item.pantry_quantity_base > 0 %}
                                 <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; background: #fffbeb; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px;">
-                                    <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i> Low ({{ item.display_quantity_pantry | format_fraction }})
+                                    <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i> Low Stock
                                 </span>
                             {% else %}
                                 <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; background: #fef2f2; color: #991b1b; padding: 0.25rem 0.5rem; border-radius: 4px;">

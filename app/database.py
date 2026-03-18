@@ -124,6 +124,13 @@ def init_db():
         print("Adding 'instructions' column to 'meals' table.")
         conn.execute('ALTER TABLE meals ADD COLUMN instructions TEXT')
 
+    # Add parent_id column to ingredients if it doesn't exist
+    try:
+        conn.execute('SELECT parent_id FROM ingredients LIMIT 1').fetchall()
+    except sqlite3.OperationalError:
+        print("Adding 'parent_id' column to 'ingredients' table.")
+        conn.execute('ALTER TABLE ingredients ADD COLUMN parent_id INTEGER REFERENCES ingredients(id)')
+
     conn.commit()
     conn.close()
 
