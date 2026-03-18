@@ -59,6 +59,33 @@ def parse_quantity(quantity_str):
         raise ValueError(f"Could not parse quantity: '{quantity_str}'")
 
 
+def parse_quantity_and_unit(quantity_str):
+    """Parses a quantity string like '500 g', '1.5 liter', or '10oz' into a (quantity, unit) tuple.
+
+    Args:
+        quantity_str (str): The string to parse.
+
+    Returns:
+        tuple: (float, str) or (None, None) if parsing fails.
+    """
+    if not quantity_str:
+        return None, None
+
+    # Regex to capture the numeric/fractional part and the alphabetical unit part
+    # Group 1: Numeric part (including spaces for mixed numbers, decimals, and slashes for fractions)
+    # Group 2: Unit part (letters)
+    match = re.search(r"([\d\s./]+)\s*([a-zA-Z]+)", quantity_str.strip())
+    if match:
+        qty_part = match.group(1).strip()
+        unit_part = match.group(2).strip().lower()
+        try:
+            qty = parse_quantity(qty_part)
+            return qty, unit_part
+        except ValueError:
+            pass
+    return None, None
+
+
 def get_base_unit_type(unit):
     """Determines if a unit is for mass, volume, or count.
 
@@ -137,8 +164,11 @@ def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=
         unit = unit.lower().strip()
 
         ingredient = None
+        parent_ingredient = None
         if ingredient_id:
             ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+            if ingredient and ingredient['parent_id']:
+                parent_ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
 
         source_unit_type = get_base_unit_type(unit)
         target_base_unit = ingredient['base_unit'] if ingredient else get_base_unit(source_unit_type)
@@ -168,6 +198,8 @@ def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=
             density = density_g_ml
             if ingredient and ingredient['density_g_ml']:
                 density = ingredient['density_g_ml']
+            elif parent_ingredient and parent_ingredient['density_g_ml']:
+                density = parent_ingredient['density_g_ml']
 
             if not density:
                 # This is the error that the user was seeing.
@@ -206,12 +238,23 @@ def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=
 
         # Fallback for other cases, like ingredient-specific non-density conversions
         if ingredient_id:
+            # Check child conversions first
             res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, unit, target_base_unit)).fetchone()
             if res:
                 return (quantity * res['factor'], target_base_unit, target_base_unit_type)
             res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, target_base_unit, unit)).fetchone()
             if res:
                 return (quantity / res['factor'], target_base_unit, target_base_unit_type)
+            
+            # Then check parent conversions if it's a child
+            if ingredient and ingredient['parent_id']:
+                parent_id = ingredient['parent_id']
+                res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (parent_id, unit, target_base_unit)).fetchone()
+                if res:
+                    return (quantity * res['factor'], target_base_unit, target_base_unit_type)
+                res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (parent_id, target_base_unit, unit)).fetchone()
+                if res:
+                    return (quantity / res['factor'], target_base_unit, target_base_unit_type)
 
         raise ValueError(f"No conversion factor found for '{unit}' to '{target_base_unit}'")
     finally:
@@ -251,9 +294,15 @@ def needs_conversion_prompt(unit, ingredient_id, conn=None):
 
         # If types are different (mass vs volume), a conversion is needed.
         if current_base_type != new_unit_type and {current_base_type, new_unit_type} == {'mass', 'volume'}:
-            # A prompt is needed only if the density is not already known.
-            if ingredient['density_g_ml'] and ingredient['density_g_ml'] > 0:
-                return False  # Density exists, no prompt needed.
+            # Check for specific density or parent density
+            density = ingredient['density_g_ml']
+            if (not density or density <= 0) and ingredient['parent_id']:
+                parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
+                if parent:
+                    density = parent['density_g_ml']
+
+            if density and density > 0:
+                return False  # Density exists (locally or inherited), no prompt needed.
             else:
                 return True   # No density, prompt is needed.
 
@@ -504,9 +553,17 @@ def convert_units(quantity, from_unit, to_unit, ingredient_id=None, conn=None):
         # Case 2: Target unit is a different type (mass <-> volume)
         elif {to_unit_type, base_unit_type} == {'mass', 'volume'}:
             ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-            if not ingredient or not ingredient['density_g_ml']:
-                raise ValueError(f"Density required to convert between {base_unit_type} and {to_unit_type} for this ingredient.")
+            if not ingredient:
+                raise ValueError("Ingredient not found.")
+            
             density = ingredient['density_g_ml']
+            if (not density or density <= 0) and ingredient['parent_id']:
+                parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
+                if parent:
+                    density = parent['density_g_ml']
+
+            if not density:
+                raise ValueError(f"Density required to convert between {base_unit_type} and {to_unit_type} for '{ingredient['name']}'.")
 
             # Path: base_unit -> ml -> to_unit
             quantity_in_ml = 0

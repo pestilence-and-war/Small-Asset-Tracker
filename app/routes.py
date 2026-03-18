@@ -6,7 +6,8 @@ from thefuzz import process, fuzz
 from app.units import (
     convert_to_base, needs_conversion_prompt, get_conversion_prompt_html,
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
-    convert_units, format_fraction, convert_from_base, parse_quantity
+    convert_units, format_fraction, convert_from_base, parse_quantity,
+    parse_quantity_and_unit
 )
 import os
 from werkzeug.utils import secure_filename
@@ -197,14 +198,10 @@ def add_item_by_upc():
                 item_quantity = 1
                 item_unit = 'unit'
                 if off_data['quantity_str']:
-                    try:
-                        # Simple split, e.g., "500 g" -> (500, "g")
-                        parts = off_data['quantity_str'].split(' ', 1)
-                        if len(parts) == 2:
-                            item_quantity = parse_quantity(parts[0])
-                            item_unit = parts[1].lower()
-                    except (ValueError, TypeError):
-                        pass
+                    parsed_qty, parsed_unit = parse_quantity_and_unit(off_data['quantity_str'])
+                    if parsed_qty is not None and parsed_unit:
+                        item_quantity = parsed_qty
+                        item_unit = parsed_unit
 
                 # If the name is missing after all that, we can't add it.
                 if not item_name:
@@ -799,7 +796,13 @@ def edit_ingredient(ing_id):
 
             # Scenario 2: Unit type is changing between mass/volume and density is required
             else:
-                if not current_ingredient['density_g_ml']:
+                density = current_ingredient['density_g_ml']
+                if (not density or density <= 0) and current_ingredient['parent_id']:
+                    parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (current_ingredient['parent_id'],)).fetchone()
+                    if parent:
+                        density = parent['density_g_ml']
+
+                if not density:
                     # The 'with conn' block will close the connection, so we can safely return a prompt here.
                     # No changes have been committed.
                     return render_template(
@@ -807,7 +810,7 @@ def edit_ingredient(ing_id):
                         ingredient=dict(current_ingredient), new_name=new_name,
                         new_quantity=new_quantity, new_unit=new_unit, view_name=view_name
                     )
-                else: # Density exists
+                else: # Density exists (locally or inherited)
                     quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
                     conn.execute(
                         "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ?, parent_id = ? WHERE id = ?",
