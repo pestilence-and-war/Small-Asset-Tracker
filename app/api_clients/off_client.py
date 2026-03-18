@@ -52,6 +52,9 @@ class OpenFoodFactsClient:
                 # Try to get quantity and unit
                 quantity_str = product.get("quantity", "")
                 
+                # Get image URL (prefer front_small or front)
+                image_url = product.get("image_front_small_url") or product.get("image_front_url") or product.get("image_url")
+                
                 # Check for liquid/solid hints
                 # If the unit is ml, l, etc., it's volume. If g, kg, it's mass.
                 unit_hint = "count"
@@ -65,6 +68,7 @@ class OpenFoodFactsClient:
                     "quantity_str": quantity_str,
                     "category": category,
                     "unit_hint": unit_hint,
+                    "image_url": image_url,
                     "source": "Open Food Facts"
                 }
             return None

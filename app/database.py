@@ -131,6 +131,13 @@ def init_db():
         print("Adding 'parent_id' column to 'ingredients' table.")
         conn.execute('ALTER TABLE ingredients ADD COLUMN parent_id INTEGER REFERENCES ingredients(id)')
 
+    # Add image_url column to ingredients if it doesn't exist
+    try:
+        conn.execute('SELECT image_url FROM ingredients LIMIT 1').fetchall()
+    except sqlite3.OperationalError:
+        print("Adding 'image_url' column to 'ingredients' table.")
+        conn.execute('ALTER TABLE ingredients ADD COLUMN image_url TEXT')
+
     conn.commit()
     conn.close()
 

@@ -61,7 +61,7 @@ def get_all_ingredients(view_name='pantry', search_query=None):
     # Join with ingredient_view_units to get the preferred display unit
     sql = f"""
         SELECT
-            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type,
+            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.image_url,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?
@@ -185,6 +185,7 @@ def add_item_by_upc():
                 # Auto-detect category
                 category = off_data['category']
                 density = 1.0 if off_data['unit_hint'] == 'volume' else None # Default 1.0 for liquids
+                image_url = off_data.get('image_url')
                 
                 # Map some OFF categories to our local ones
                 cat_map = {
@@ -214,6 +215,7 @@ def add_item_by_upc():
                 item_unit = upc_item['unit'].strip().lower() if upc_item['unit'] else 'unit'
                 local_category = "Other"
                 density = None
+                image_url = None
 
             # 2. Check if this ingredient already exists in the pantry
             ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (item_name,)).fetchone()
@@ -224,6 +226,11 @@ def add_item_by_upc():
                 # Convert the quantity from the UPC data to the ingredient's base unit
                 quantity_to_add_in_base_unit, _, _ = convert_to_base(item_quantity, item_unit, ingredient_id, conn=conn)
                 conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (quantity_to_add_in_base_unit, ingredient_id))
+                
+                # Update image_url if we have a new one and the old one is missing
+                if image_url and not ingredient['image_url']:
+                    conn.execute("UPDATE ingredients SET image_url = ? WHERE id = ?", (image_url, ingredient_id))
+                
                 message = f"Updated quantity for {item_name}."
 
             else:
@@ -241,8 +248,8 @@ def add_item_by_upc():
                     converted_quantity, _, _ = convert_to_base(item_quantity, item_unit, density_g_ml=density, conn=conn)
 
                 conn.execute(
-                    'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, category, density_g_ml) VALUES (?, ?, ?, ?, ?, ?)',
-                    (item_name, converted_quantity, base_unit, base_unit_type, local_category, density)
+                    'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, category, density_g_ml, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (item_name, converted_quantity, base_unit, base_unit_type, local_category, density, image_url)
                 )
                 message = f"Added new item: {item_name} (Category: {local_category})."
 
@@ -639,7 +646,7 @@ def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
     conn = get_db_connection()
     query = f"""
         SELECT
-            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml, i.parent_id,
+            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml, i.parent_id, i.image_url,
             ivu.unit as display_unit
         FROM ingredients i
         LEFT JOIN ingredient_view_units ivu ON i.id = ivu.ingredient_id AND ivu.view_name = ?

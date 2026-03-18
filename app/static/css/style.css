@@ -358,7 +358,7 @@ ul { list-style: none; padding: 0; margin: 0; }
 
 .ingredient-item {
     background: #fff;
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     margin-bottom: 0.75rem;
@@ -374,10 +374,37 @@ ul { list-style: none; padding: 0; margin: 0; }
 
 .ingredient-display {
     display: grid;
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: 48px 1fr auto auto auto;
     align-items: center;
     gap: 1rem;
     width: 100%;
+}
+
+.ingredient-image, .ingredient-image-placeholder {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+}
+
+.ingredient-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.ingredient-image-placeholder {
+    color: var(--text-muted);
+}
+
+.ingredient-image-placeholder i {
+    width: 20px;
+    height: 20px;
 }
 
 .ingredient-name {

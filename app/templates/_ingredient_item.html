@@ -1,5 +1,15 @@
 <li id="ingredient-{{ ingredient.id }}" class="ingredient-item">
     <div class="ingredient-display">
+        {% if ingredient.image_url %}
+            <div class="ingredient-image">
+                <img src="{{ ingredient.image_url }}" alt="{{ ingredient.name }}" loading="lazy">
+            </div>
+        {% else %}
+            <div class="ingredient-image-placeholder">
+                <i data-lucide="package"></i>
+            </div>
+        {% endif %}
+
         <span class="ingredient-name">{{ ingredient.name }}</span>
         
         <span class="ingredient-qty">{{ '%.2f'|format(ingredient.display_quantity) }}</span>
