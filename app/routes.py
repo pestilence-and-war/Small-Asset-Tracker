@@ -301,7 +301,10 @@ def add_ingredient():
         if ingredient:
             # Ingredient exists, update its quantity.
             if needs_conversion_prompt(unit, ingredient['id'], conn=conn):
-                return make_response(get_conversion_prompt_html(ingredient['id'], quantity, unit, 0))
+                prompt_html = get_conversion_prompt_html(ingredient['id'], quantity, unit, 0)
+                ingredients = get_all_ingredients()
+                list_html = render_template('_ingredients_list.html', ingredients=ingredients)
+                return list_html + prompt_html
 
             converted_quantity, _, _ = convert_to_base(quantity, unit, ingredient['id'], conn=conn)
             conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (converted_quantity, ingredient['id']))
@@ -488,6 +491,47 @@ def add_conversion():
     ingredients = get_all_ingredients()
     return render_template('_ingredients_list.html', ingredients=ingredients)
 
+@app.route('/delete_conversion/<int:conversion_id>', methods=['DELETE'])
+def delete_conversion(conversion_id):
+    """Deletes an ingredient-specific unit conversion."""
+    ingredient_id = request.args.get('ingredient_id')
+    view_name = request.args.get('view_name', 'pantry')
+    
+    conn = get_db_connection()
+    try:
+        conn.execute("DELETE FROM ingredient_conversions WHERE id = ?", (conversion_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"Error deleting conversion: {e}")
+    finally:
+        conn.close()
+
+    # Re-render the edit form
+    return edit_ingredient_form(int(ingredient_id))
+
+@app.route('/add_conversion_manual', methods=['POST'])
+def add_conversion_manual():
+    """Adds a manual ingredient-specific unit conversion and returns the edit form."""
+    ingredient_id = request.form['ingredient_id']
+    from_unit = request.form['from_unit'].strip().lower()
+    to_unit = request.form['to_unit']
+    factor = float(request.form['factor'])
+    view_name = request.form.get('view_name', 'pantry')
+
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+                (ingredient_id, from_unit, to_unit, factor)
+            )
+    except Exception as e:
+        print(f"Error in add_conversion_manual: {e}")
+    finally:
+        conn.close()
+
+    return edit_ingredient_form(int(ingredient_id))
+
 @app.route('/add_new_ingredient_with_density', methods=['POST'])
 def add_new_ingredient_with_density():
     """Adds a new ingredient with a specified density.
@@ -673,6 +717,8 @@ def get_ingredient_by_id(ingredient_id, view_name='pantry', for_editing=False):
     if for_editing:
         # For the edit form, we want to show all possible units
         item_dict['compatible_units'] = mass_units + volume_units + ['unit']
+        # Fetch ingredient-specific conversions
+        item_dict['conversions'] = [dict(r) for r in conn.execute("SELECT * FROM ingredient_conversions WHERE ingredient_id = ?", (ingredient_id,)).fetchall()]
     else:
         # For display, only show compatible units
         if item_dict['base_unit_type'] == 'mass':

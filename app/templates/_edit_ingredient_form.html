@@ -1,17 +1,17 @@
-<form hx-post="/edit_ingredient/{{ ingredient.id }}" hx-target="closest li" hx-swap="outerHTML" style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem; background: #f8fafc; border-radius: var(--radius-sm); border: 1px solid var(--border); margin: 0; box-shadow: none;">
+<form hx-post="/edit_ingredient/{{ ingredient.id }}" hx-target="closest li" hx-swap="outerHTML" style="display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem; background: #f8fafc; border-radius: var(--radius-sm); border: 1px solid var(--border); margin: 0; box-shadow: var(--shadow-md);">
     <input type="hidden" name="view_name" value="{{ view_name or 'pantry' }}">
     
     <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.75rem;">
-        <div style="flex: 1;">
-            <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">Ingredient Name</label>
+        <div>
+            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; display: block;">Ingredient Name</label>
             <input type="text" name="name" value="{{ ingredient.name }}" required style="margin-bottom: 0;">
         </div>
-        <div style="flex: 1;">
-            <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">Qty</label>
+        <div>
+            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; display: block;">Qty</label>
             <input type="text" name="quantity" value="{{ '%.2f'|format(ingredient.display_quantity) }}" required style="margin-bottom: 0;">
         </div>
-        <div style="flex: 1;">
-            <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">Unit</label>
+        <div>
+            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; display: block;">Unit</label>
             <select name="unit" style="margin-bottom: 0;">
                 {% for unit in ingredient.compatible_units %}
                 <option value="{{ unit }}" {% if unit == ingredient.display_unit %}selected{% endif %}>
@@ -22,9 +22,9 @@
         </div>
     </div>
     
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;">
-        <div style="flex: 1;">
-            <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">Category</label>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; display: block;">Category</label>
             <select name="category" style="margin-bottom: 0;">
                 {% for category in categories %}
                 <option value="{{ category }}" {% if category == ingredient.category %}selected{% endif %}>
@@ -34,8 +34,8 @@
             </select>
         </div>
         
-        <div style="flex: 1;">
-            <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">Generic Parent (Optional)</label>
+        <div>
+            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem; display: block;">Generic Parent (Optional)</label>
             <select name="parent_id" style="margin-bottom: 0;">
                 <option value="">-- None --</option>
                 {% for parent in potential_parents %}
@@ -45,17 +45,102 @@
                 {% endfor %}
             </select>
         </div>
+    </div>
+
+    <!-- Conversions Section -->
+    <div style="margin-top: 0.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+        <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">
+            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Custom Conversions
+        </label>
         
-        <div style="display: flex; gap: 0.5rem;">
-            <button type="submit" style="padding: 0.5rem 1rem;">
-                <i data-lucide="check" style="width: 14px; height: 14px;"></i> Save
-            </button>
-            <button type="button" hx-get="/ingredient/{{ ingredient.id }}?view_name={{ view_name or 'pantry' }}" hx-target="closest li" hx-swap="outerHTML" class="button-secondary" style="padding: 0.5rem 1rem;">
-                Cancel
-            </button>
-            <button type="button" hx-delete="/delete_ingredient/{{ ingredient.id }}" hx-confirm="Are you sure?" hx-target="closest li" hx-swap="outerHTML" class="button-danger" style="padding: 0.5rem;">
-                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-            </button>
+        {% if ingredient.conversions %}
+            <div style="display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 1rem;">
+                {% for conv in ingredient.conversions %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 0.4rem 0.75rem; border-radius: 4px; border: 1px solid var(--border); font-size: 0.875rem;">
+                        <span>1 {{ conv.from_unit }} = {{ '%.4f'|format(conv.factor) }} {{ conv.to_unit }}</span>
+                        <button type="button" 
+                                hx-delete="/delete_conversion/{{ conv.id }}?ingredient_id={{ ingredient.id }}&view_name={{ view_name }}" 
+                                hx-target="closest form" 
+                                hx-swap="outerHTML"
+                                class="link-button" 
+                                style="color: var(--error); font-size: 0.75rem;">
+                            <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                        </button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="font-size: 0.8125rem; color: var(--text-muted); font-style: italic; margin-bottom: 1rem;">No custom conversions defined.</p>
+        {% endif %}
+
+        <!-- Add Manual Conversion Trigger -->
+        <div style="background: #fff; padding: 0.75rem; border-radius: 6px; border: 1px dashed var(--border);">
+            <p style="font-size: 0.8125rem; margin-bottom: 0.5rem; font-weight: 500;">Add Conversion Override</p>
+            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem;">
+                <span>1</span>
+                <input type="text" id="manual-from-unit" placeholder="ea, pkg..." style="width: 60px; margin: 0; padding: 0.25rem;">
+                <span>=</span>
+                <input type="number" id="manual-factor" step="any" placeholder="1.5" style="width: 60px; margin: 0; padding: 0.25rem;">
+                <select id="manual-to-unit" style="width: 80px; margin: 0; padding: 0.25rem;">
+                    {% for unit in ingredient.compatible_units %}
+                        <option value="{{ unit }}" {% if unit == ingredient.base_unit %}selected{% endif %}>{{ unit }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" 
+                        onclick="addManualConversion({{ ingredient.id }}, '{{ view_name }}')"
+                        class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                    Add
+                </button>
+            </div>
         </div>
     </div>
+    
+    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+        <button type="submit" style="padding: 0.5rem 1.25rem;">
+            <i data-lucide="check" style="width: 14px; height: 14px;"></i> Save Changes
+        </button>
+        <button type="button" hx-get="/ingredient/{{ ingredient.id }}?view_name={{ view_name or 'pantry' }}" hx-target="closest li" hx-swap="outerHTML" class="button-secondary" style="padding: 0.5rem 1.25rem;">
+            Cancel
+        </button>
+        <button type="button" hx-delete="/delete_ingredient/{{ ingredient.id }}" hx-confirm="Are you sure you want to delete this ingredient?" hx-target="closest li" hx-swap="outerHTML" class="button-danger" style="padding: 0.5rem;">
+            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+        </button>
+    </div>
 </form>
+
+<script>
+function addManualConversion(ingId, viewName) {
+    const fromUnit = document.getElementById('manual-from-unit').value;
+    const factor = document.getElementById('manual-factor').value;
+    const toUnit = document.getElementById('manual-to-unit').value;
+    
+    if (!fromUnit || !factor || !toUnit) {
+        alert('Please fill in all conversion fields');
+        return;
+    }
+    
+    // We can use the existing /add_conversion route but we need to trick it 
+    // to return the edit form instead of the ingredient list.
+    // Or we add a new route. Adding a new route is cleaner.
+    
+    const formData = new FormData();
+    formData.append('ingredient_id', ingId);
+    formData.append('from_unit', fromUnit);
+    formData.append('factor', factor);
+    formData.append('to_unit', toUnit);
+    formData.append('view_name', viewName);
+    formData.append('return_edit_form', 'true');
+    
+    htmx.ajax('POST', '/add_conversion_manual', {
+        target: 'closest form',
+        swap: 'outerHTML',
+        values: {
+            ingredient_id: ingId,
+            from_unit: fromUnit,
+            factor: factor,
+            to_unit: toUnit,
+            view_name: viewName
+        }
+    });
+}
+</script>

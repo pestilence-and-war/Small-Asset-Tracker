@@ -366,19 +366,23 @@ def get_conversion_prompt_html(ingredient_id, original_quantity, original_unit, 
         """
 
     return f"""
-    <div id="conversion-prompt" class="conversion-prompt">
-        <h4>Conversion Needed</h4>
-        <p>{prompt_text}</p>
-        <form hx-post="/add_conversion" hx-target="#ingredient-list-container" hx-swap="innerHTML">
-            <input type="hidden" name="ingredient_id" value="{ingredient_id}">
-            <input type="hidden" name="from_unit" value="{original_unit}">
-            <input type="hidden" name="to_unit" value="{target_unit}">
-            <input type="hidden" name="quantity_to_add" value="{original_quantity}">
-            <input type="hidden" name="unit_to_add" value="{original_unit}">
+    <div id="user-prompts" hx-swap-oob="true">
+        <div id="conversion-prompt" class="conversion-prompt">
+            <h4><i data-lucide="help-circle"></i> Conversion Needed</h4>
+            <p>{prompt_text}</p>
+            <form hx-post="/add_conversion" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="this.closest('#conversion-prompt').remove()">
+                <input type="hidden" name="ingredient_id" value="{ingredient_id}">
+                <input type="hidden" name="from_unit" value="{original_unit}">
+                <input type="hidden" name="to_unit" value="{target_unit}">
+                <input type="hidden" name="quantity_to_add" value="{original_quantity}">
+                <input type="hidden" name="unit_to_add" value="{original_unit}">
 
-            {default_factor_input}
-            <button type="submit">Save & Add</button>
-        </form>
+                {default_factor_input}
+                <button type="submit">Save & Add</button>
+                <button type="button" class="button-secondary" onclick="this.closest('#conversion-prompt').remove()">Cancel</button>
+            </form>
+        </div>
+        <script>lucide.createIcons();</script>
     </div>
     """
 
@@ -395,20 +399,26 @@ def get_new_ingredient_conversion_prompt_html(ingredient_name, original_quantity
         str: The HTML for the density prompt.
     """
     return f"""
-    <div id="conversion-prompt" class="conversion-prompt">
-        <h4>New Ingredient: Density Needed</h4>
-        <p>To allow for conversions between mass and volume (e.g., cups to grams), please provide the density for <strong>{ingredient_name}</strong>.</p>
-        <p class="small-text">Don't know the density in g/ml? <button type="button" class="link-button" onclick="openModalAndTab('Density')">Calculate it here</button>.</p>
-        <form hx-post="/add_new_ingredient_with_density" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="this.closest('#conversion-prompt').remove()">
-            <input type="hidden" name="ingredient_name" value="{ingredient_name}">
-            <input type="hidden" name="original_quantity" value="{original_quantity}">
-            <input type="hidden" name="original_unit" value="{original_unit}">
+    <div id="user-prompts" hx-swap-oob="true">
+        <div id="conversion-prompt" class="conversion-prompt">
+            <h4><i data-lucide="info"></i> New Ingredient: Density Needed</h4>
+            <p>To allow for conversions between mass and volume (e.g., cups to grams), please provide the density for <strong>{ingredient_name}</strong>.</p>
+            <p class="small-text">Don't know the density in g/ml? <button type="button" class="link-button" onclick="openModalAndTab('Density')">Calculate it here</button>.</p>
+            <form hx-post="/add_new_ingredient_with_density" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="this.closest('#conversion-prompt').remove()">
+                <input type="hidden" name="ingredient_name" value="{ingredient_name}">
+                <input type="hidden" name="original_quantity" value="{original_quantity}">
+                <input type="hidden" name="original_unit" value="{original_unit}">
 
-            <label for="density">Density (grams per milliliter):</label>
-            <input type="number" name="density_g_ml" id="density" step="any" required placeholder="e.g., 1 for water, 0.53 for flour">
-            <button type="submit">Save & Add Ingredient</button>
-        </form>
-        <p class="small-text">Why is this needed? The application stores all convertible ingredients by mass (grams) for accuracy. Providing a density (g/mL) allows the system to correctly handle both weight and volume units for '{ingredient_name}' in the future.</p>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <label for="density" style="margin-bottom: 0;">Density (g/ml):</label>
+                    <input type="number" name="density_g_ml" id="density" step="any" required placeholder="e.g., 1.0" style="width: 100px;">
+                    <button type="submit">Save & Add</button>
+                    <button type="button" class="button-secondary" onclick="this.closest('#conversion-prompt').remove()">Cancel</button>
+                </div>
+            </form>
+            <p class="small-text" style="margin-top: 1rem; margin-bottom: 0;">Accuracy Tip: Most liquids are ~1.0. Flour is ~0.53. Sugar is ~0.85.</p>
+        </div>
+        <script>lucide.createIcons();</script>
     </div>
     """
 
