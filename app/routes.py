@@ -86,11 +86,11 @@ def get_all_ingredients(view_name='pantry', search_query=None):
 
         # Determine compatible units for the dropdown
         if item_dict['base_unit_type'] == 'mass':
-            item_dict['compatible_units'] = mass_units + volume_units
+            item_dict['compatible_units'] = mass_units + volume_units + ['unit']
         elif item_dict['base_unit_type'] == 'volume':
-            item_dict['compatible_units'] = volume_units + mass_units
+            item_dict['compatible_units'] = volume_units + mass_units + ['unit']
         else: # count
-            item_dict['compatible_units'] = ['unit']
+            item_dict['compatible_units'] = ['unit'] + mass_units + volume_units
 
 
         # Convert the base quantity to the display quantity
@@ -451,9 +451,14 @@ def add_conversion():
     ingredient_id = request.form['ingredient_id']
     from_unit = request.form['from_unit']
     to_unit = request.form['to_unit']
-    factor = float(request.form['factor'])
     original_quantity = float(request.form['quantity_to_add'])
     original_unit = request.form['unit_to_add']
+    
+    if request.form.get('is_total_conversion') == 'true':
+        total_target_quantity = float(request.form['total_target_quantity'])
+        factor = total_target_quantity / original_quantity
+    else:
+        factor = float(request.form['factor'])
 
     conn = get_db_connection()
     try:
@@ -467,6 +472,8 @@ def add_conversion():
             # Now that the conversion is saved, add the original quantity again.
             # No new connection is needed as we are in the same transaction.
             converted_quantity, _, _ = convert_to_base(original_quantity, original_unit, ingredient_id, conn=conn)
+            
+            # Update ingredient quantity
             conn.execute(
                 "UPDATE ingredients SET quantity = quantity + ? WHERE id = ?",
                 (converted_quantity, ingredient_id)
@@ -1333,11 +1340,11 @@ def get_meal_ingredients(meal_id, view_name='recipe'):
 
         # Determine compatible units for the dropdown
         if item_dict['base_unit_type'] == 'mass':
-            item_dict['compatible_units'] = mass_units + volume_units
+            item_dict['compatible_units'] = mass_units + volume_units + ['unit']
         elif item_dict['base_unit_type'] == 'volume':
-            item_dict['compatible_units'] = volume_units + mass_units
+            item_dict['compatible_units'] = volume_units + mass_units + ['unit']
         else: # count
-            item_dict['compatible_units'] = ['unit']
+            item_dict['compatible_units'] = ['unit'] + mass_units + volume_units
 
         # Convert the recipe quantity to the display quantity
         try:

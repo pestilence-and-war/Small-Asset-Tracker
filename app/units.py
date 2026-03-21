@@ -102,7 +102,7 @@ def get_base_unit_type(unit):
     if unit in ['g', 'kg', 'lb', 'oz']:
         return 'mass'
     # Volume
-    if unit in ['ml', 'l', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint', 'teaspoon', 'tablespoon', 'cc']:
+    if unit in ['ml', 'l', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint', 'teaspoon', 'tablespoon', 'cc', 'fl oz', 'fl.oz', 'floz']:
         return 'volume'
     # Count
     if unit in ['unit', 'units']:
@@ -293,18 +293,36 @@ def needs_conversion_prompt(unit, ingredient_id, conn=None):
         new_unit_type = get_base_unit_type(unit)
 
         # If types are different (mass vs volume), a conversion is needed.
-        if current_base_type != new_unit_type and {current_base_type, new_unit_type} == {'mass', 'volume'}:
-            # Check for specific density or parent density
-            density = ingredient['density_g_ml']
-            if (not density or density <= 0) and ingredient['parent_id']:
-                parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
-                if parent:
-                    density = parent['density_g_ml']
+        if current_base_type != new_unit_type:
+            if {current_base_type, new_unit_type} == {'mass', 'volume'}:
+                # Check for specific density or parent density
+                density = ingredient['density_g_ml']
+                if (not density or density <= 0) and ingredient['parent_id']:
+                    parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
+                    if parent:
+                        density = parent['density_g_ml']
 
-            if density and density > 0:
-                return False  # Density exists (locally or inherited), no prompt needed.
-            else:
-                return True   # No density, prompt is needed.
+                if density and density > 0:
+                    return False  # Density exists (locally or inherited), no prompt needed.
+                else:
+                    return True   # No density, prompt is needed.
+
+            # Handle count-to-mass or count-to-volume
+            elif 'count' in {current_base_type, new_unit_type}:
+                # Check if a specific conversion factor already exists for this ingredient
+                res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND ((from_unit = ? AND to_unit = ?) OR (from_unit = ? AND to_unit = ?))",
+                                   (ingredient_id, unit, ingredient['base_unit'], ingredient['base_unit'], unit)).fetchone()
+                if res:
+                    return False
+                
+                # Check parent
+                if ingredient['parent_id']:
+                    res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND ((from_unit = ? AND to_unit = ?) OR (from_unit = ? AND to_unit = ?))",
+                                       (ingredient['parent_id'], unit, ingredient['base_unit'], ingredient['base_unit'], unit)).fetchone()
+                    if res:
+                        return False
+
+                return True # No conversion factor found, prompt is needed.
 
         return False
     finally:
@@ -331,19 +349,34 @@ def get_conversion_prompt_html(ingredient_id, original_quantity, original_unit, 
 
     if not ingredient:
         return "Error: Ingredient not found."
+    
+    target_unit = ingredient['base_unit']
+    
+    # Smarter prompt for count conversions
+    if 'unit' in {original_unit, target_unit}:
+        prompt_text = f"How many <strong>{target_unit}</strong> are in <strong>{original_quantity} {original_unit}</strong> of {ingredient['name']}?"
+        default_factor_input = f"""
+            {original_quantity} {original_unit} = <input type="number" name="total_target_quantity" step="any" required> {target_unit}
+            <input type="hidden" name="is_total_conversion" value="true">
+        """
+    else:
+        prompt_text = f"How many {target_unit} are in 1 {original_unit} of {ingredient['name']}?"
+        default_factor_input = f"""
+            1 {original_unit} = <input type="number" name="factor" step="any" required> {target_unit}
+        """
 
     return f"""
     <div id="conversion-prompt" class="conversion-prompt">
         <h4>Conversion Needed</h4>
-        <p>How many grams are in 1 {original_unit} of {ingredient['name']}?</p>
+        <p>{prompt_text}</p>
         <form hx-post="/add_conversion" hx-target="#ingredient-list-container" hx-swap="innerHTML">
             <input type="hidden" name="ingredient_id" value="{ingredient_id}">
             <input type="hidden" name="from_unit" value="{original_unit}">
-            <input type="hidden" name="to_unit" value="{ingredient['base_unit']}">
+            <input type="hidden" name="to_unit" value="{target_unit}">
             <input type="hidden" name="quantity_to_add" value="{original_quantity}">
             <input type="hidden" name="unit_to_add" value="{original_unit}">
 
-            1 {original_unit} = <input type="number" name="factor" step="any" required> {ingredient['base_unit']}
+            {default_factor_input}
             <button type="submit">Save & Add</button>
         </form>
     </div>
