@@ -581,6 +581,19 @@ def convert_units(quantity, from_unit, to_unit, ingredient_id=None, conn=None):
         if not to_unit_type:
             raise ValueError(f"Unknown unit type for '{to_unit}'")
 
+        # Case 0: Specific ingredient conversion (highest priority, handles type mismatches like oz -> unit)
+        res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND ((from_unit = ? AND to_unit = ?) OR (from_unit = ? AND to_unit = ?))",
+                           (ingredient_id, from_unit, to_unit, to_unit, from_unit)).fetchone()
+        if res:
+            # We found a custom conversion for this specific pair
+            # Let's check the direction
+            direction_res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, from_unit, to_unit)).fetchone()
+            if direction_res:
+                return base_quantity * direction_res['factor']
+            else: # Must be the reverse
+                reverse_res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, to_unit, from_unit)).fetchone()
+                return base_quantity / reverse_res['factor']
+
         # Case 1: Target unit is the same type as the base unit (e.g., g -> oz, ml -> cup)
         if to_unit_type == base_unit_type:
             if to_unit == base_unit:
