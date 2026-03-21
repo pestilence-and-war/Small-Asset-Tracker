@@ -10,41 +10,46 @@
             </div>
         {% endif %}
 
-        <span class="ingredient-name">{{ ingredient.name }}</span>
-        
-        <span class="ingredient-qty">{{ '%.2f'|format(ingredient.display_quantity) }}</span>
+        <div class="ingredient-info">
+            <div class="ingredient-name-row">
+                <span class="ingredient-name">{{ ingredient.name }}</span>
+                {% if ingredient.conversion_error %}
+                    <span class="error-icon" title="Conversion not available. Using base unit.">
+                        <i data-lucide="alert-circle" style="color: var(--error); width: 14px; height: 14px;"></i>
+                    </span>
+                {% endif %}
+            </div>
+            
+            <div class="ingredient-controls-row">
+                <span class="ingredient-qty">{{ '%.2f'|format(ingredient.display_quantity) }}</span>
 
-        <form class="unit-selector-form">
-            <input type="hidden" name="view_name" value="{{ view_name or 'pantry' }}">
-            <select name="unit"
-                    hx-post="/update_ingredient_display_unit/{{ ingredient.id }}"
-                    hx-trigger="change"
-                    hx-target="#ingredient-{{ ingredient.id }}"
-                    hx-swap="outerHTML"
-                    hx-include="[name='view_name']">
-                {% for unit in ingredient.compatible_units %}
-                <option value="{{ unit }}" {% if unit == ingredient.display_unit %}selected{% endif %}>
-                    {{ unit }}
-                </option>
-                {% endfor %}
-            </select>
-        </form>
+                <form class="unit-selector-form">
+                    <input type="hidden" name="view_name" value="{{ view_name or 'pantry' }}">
+                    <select name="unit"
+                            hx-post="/update_ingredient_display_unit/{{ ingredient.id }}"
+                            hx-trigger="change"
+                            hx-target="#ingredient-{{ ingredient.id }}"
+                            hx-swap="outerHTML"
+                            hx-include="[name='view_name']">
+                        {% for unit in ingredient.compatible_units %}
+                        <option value="{{ unit }}" {% if unit == ingredient.display_unit %}selected{% endif %}>
+                            {{ unit }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
 
-        <div class="ingredient-actions">
-            {% if ingredient.conversion_error %}
-                <span class="error-icon" title="Conversion not available. Using base unit.">
-                    <i data-lucide="alert-circle" style="color: var(--error); width: 18px; height: 18px;"></i>
-                </span>
-            {% endif %}
-
-            {% if show_edit_buttons %}
-                <button hx-get="/edit_ingredient_form/{{ ingredient.id }}?view_name={{ view_name or 'pantry' }}" 
-                        hx-target="#ingredient-{{ ingredient.id }}" 
-                        hx-swap="innerHTML" 
-                        class="edit-btn">
-                    <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i> Edit
-                </button>
-            {% endif %}
+                <div class="ingredient-actions">
+                    {% if show_edit_buttons %}
+                        <button hx-get="/edit_ingredient_form/{{ ingredient.id }}?view_name={{ view_name or 'pantry' }}" 
+                                hx-target="#ingredient-{{ ingredient.id }}" 
+                                hx-swap="innerHTML" 
+                                class="edit-btn">
+                            <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i> Edit
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </li>
