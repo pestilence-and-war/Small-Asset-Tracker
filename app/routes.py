@@ -1881,6 +1881,51 @@ def generate_shopping_list(meal_plan_id):
     return shopping_list
 
 
+@app.route('/data')
+def data_view():
+    """Renders a comprehensive data view table for ingredients and recipes."""
+    conn = get_db_connection()
+    
+    # 1. Fetch Ingredients with Parent names and Child counts
+    ingredients_raw = conn.execute("""
+        SELECT 
+            i.id, i.name, i.category, i.quantity, i.base_unit, i.base_unit_type, i.density_g_ml, i.parent_id, i.image_url,
+            p.name as parent_name,
+            (SELECT COUNT(*) FROM ingredients WHERE parent_id = i.id) as child_count
+        FROM ingredients i
+        LEFT JOIN ingredients p ON i.parent_id = p.id
+        ORDER BY i.name
+    """).fetchall()
+    
+    ingredients = []
+    for row in ingredients_raw:
+        item = dict(row)
+        # Fetch custom conversions for this ingredient
+        conversions = conn.execute("SELECT from_unit, to_unit, factor FROM ingredient_conversions WHERE ingredient_id = ?", (item['id'],)).fetchall()
+        item['conversions'] = [dict(c) for c in conversions]
+        ingredients.append(item)
+
+    # 2. Fetch Meals with their ingredients
+    meals_raw = conn.execute("SELECT id, name, instructions FROM meals ORDER BY name").fetchall()
+    meals = []
+    for row in meals_raw:
+        meal = dict(row)
+        # Fetch ingredients for this meal
+        meal_ing_raw = conn.execute("""
+            SELECT mi.quantity, mi.unit, i.name 
+            FROM meal_ingredients mi
+            JOIN ingredients i ON mi.ingredient_id = i.id
+            WHERE mi.meal_id = ?
+        """, (meal['id'],)).fetchall()
+        meal['ingredients'] = [dict(mi) for mi in meal_ing_raw]
+        meals.append(meal)
+
+    conn.close()
+    
+    if 'HX-Request' in request.headers:
+        return render_template('data_view.html', ingredients=ingredients, meals=meals)
+    return render_template('index.html', page_content=render_template('data_view.html', ingredients=ingredients, meals=meals))
+
 @app.route('/delete_meal/<int:meal_id>', methods=['DELETE'])
 def delete_meal(meal_id):
     """Deletes a meal and all its associated recipe ingredients."""

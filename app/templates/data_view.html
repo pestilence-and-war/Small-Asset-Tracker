@@ -1,0 +1,135 @@
+<div class="data-view-container" style="padding: 2rem; max-width: 1400px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="margin: 0; display: flex; align-items: center; gap: 0.75rem;">
+            <i data-lucide="database" style="color: var(--primary);"></i>
+            System Data Explorer
+        </h2>
+        <div style="display: flex; gap: 1rem;">
+            <button class="tab-btn active" onclick="showDataTable('ingredients-table', this)" style="padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; font-weight: 600;">Ingredients</button>
+            <button class="tab-btn" onclick="showDataTable('recipes-table', this)" style="padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; font-weight: 600;">Recipes</button>
+        </div>
+    </div>
+
+    <!-- Ingredients Table -->
+    <div id="ingredients-table" class="data-table-section">
+        <div class="card" style="overflow-x: auto; padding: 0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                <thead>
+                    <tr style="background: var(--bg-muted); border-bottom: 2px solid var(--border);">
+                        <th style="padding: 1rem; text-align: left;">ID</th>
+                        <th style="padding: 1rem; text-align: left;">Name</th>
+                        <th style="padding: 1rem; text-align: left;">Category</th>
+                        <th style="padding: 1rem; text-align: right;">Quantity</th>
+                        <th style="padding: 1rem; text-align: left;">Base Unit</th>
+                        <th style="padding: 1rem; text-align: left;">Type</th>
+                        <th style="padding: 1rem; text-align: right;">Density (g/ml)</th>
+                        <th style="padding: 1rem; text-align: left;">Parent</th>
+                        <th style="padding: 1rem; text-align: left;">Children</th>
+                        <th style="padding: 1rem; text-align: left;">Custom Rules</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ing in ingredients %}
+                    <tr style="border-bottom: 1px solid var(--border); transition: var(--transition);" onmouseover="this.style.background='var(--bg-muted)'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 1rem; color: var(--text-muted);">#{{ ing.id }}</td>
+                        <td style="padding: 1rem; font-weight: 600;">{{ ing.name }}</td>
+                        <td style="padding: 1rem;"><span class="category-badge">{{ ing.category }}</span></td>
+                        <td style="padding: 1rem; text-align: right;">{{ "%.2f"|format(ing.quantity) }}</td>
+                        <td style="padding: 1rem;"><code>{{ ing.base_unit }}</code></td>
+                        <td style="padding: 1rem;"><small style="text-transform: uppercase; color: var(--text-muted);">{{ ing.base_unit_type }}</small></td>
+                        <td style="padding: 1rem; text-align: right;">{{ "%.4f"|format(ing.density_g_ml) if ing.density_g_ml else '-' }}</td>
+                        <td style="padding: 1rem;">
+                            {% if ing.parent_name %}
+                                <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <i data-lucide="corner-left-up" style="width: 14px; color: var(--text-muted);"></i>
+                                    {{ ing.parent_name }}
+                                </span>
+                            {% else %}
+                                <span style="color: var(--text-muted); font-style: italic;">None</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem;">
+                            {% if ing.child_count > 0 %}
+                                <span style="background: var(--bg-muted); padding: 0.125rem 0.5rem; border-radius: 1rem; font-size: 0.75rem;">{{ ing.child_count }} children</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem;">
+                            {% if ing.conversions %}
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                    {% for conv in ing.conversions %}
+                                        <small style="background: var(--bg-muted); padding: 0.125rem 0.375rem; border-radius: 4px;">1 {{ conv.from_unit }} = {{ conv.factor }} {{ conv.to_unit }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <small style="color: var(--text-muted);">None</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recipes Table -->
+    <div id="recipes-table" class="data-table-section" style="display: none;">
+        <div class="card" style="overflow-x: auto; padding: 0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                <thead>
+                    <tr style="background: var(--bg-muted); border-bottom: 2px solid var(--border);">
+                        <th style="padding: 1rem; text-align: left;">ID</th>
+                        <th style="padding: 1rem; text-align: left;">Meal Name</th>
+                        <th style="padding: 1rem; text-align: left;">Ingredients</th>
+                        <th style="padding: 1rem; text-align: left;">Instructions Snippet</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for meal in meals %}
+                    <tr style="border-bottom: 1px solid var(--border); transition: var(--transition);" onmouseover="this.style.background='var(--bg-muted)'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 1rem; color: var(--text-muted);">#{{ meal.id }}</td>
+                        <td style="padding: 1rem; font-weight: 600;">{{ meal.name }}</td>
+                        <td style="padding: 1rem;">
+                            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                {% for item in meal.ingredients %}
+                                <li style="background: var(--bg-muted); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                                    <strong>{{ item.quantity }} {{ item.unit }}</strong> {{ item.name }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </td>
+                        <td style="padding: 1rem;">
+                            <div style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted);">
+                                {{ meal.instructions or 'No instructions provided.' }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showDataTable(tableId, btn) {
+        document.querySelectorAll('.data-table-section').forEach(el => el.style.display = 'none');
+        document.getElementById(tableId).style.display = 'block';
+        
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('active');
+            el.style.background = 'var(--bg-card)';
+            el.style.color = 'var(--text-main)';
+        });
+        
+        btn.classList.add('active');
+        btn.style.background = 'var(--primary)';
+        btn.style.color = 'white';
+        
+        lucide.createIcons();
+    }
+    
+    // Initial icon load
+    lucide.createIcons();
+</script>
