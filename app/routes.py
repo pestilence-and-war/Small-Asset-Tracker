@@ -1844,34 +1844,42 @@ def generate_shopping_list(meal_plan_id):
             ingredient_id = mi['ingredient_id']
 
             # Convert recipe quantity to base unit
-            base_quantity, _, _ = convert_to_base(mi['quantity'], mi['unit'], ingredient_id, conn)
+            try:
+                base_quantity, _, _ = convert_to_base(mi['quantity'], mi['unit'], ingredient_id, conn)
+                required_quantity = base_quantity * multiplier
 
-            required_quantity = base_quantity * multiplier
-
-            if ingredient_id in required_ingredients:
-                required_ingredients[ingredient_id] += required_quantity
-            else:
-                required_ingredients[ingredient_id] = required_quantity
+                if ingredient_id in required_ingredients:
+                    required_ingredients[ingredient_id] += required_quantity
+                else:
+                    required_ingredients[ingredient_id] = required_quantity
+            except ValueError as e:
+                print(f"Skipping shopping list item for meal {meal_id}, ingredient {ingredient_id}: {e}")
+                continue
 
     shopping_list = {}
     for ingredient_id, total_required in required_ingredients.items():
-        # Get pantry quantity (including children)
+        # Get parent ingredient info
         ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+        if not ingredient: continue
         
-        # Calculate total available stock (parent + children)
-        total_pantry_quantity = ingredient['quantity']
+        # 1. Start with parent stock
+        total_available_in_parent_base = ingredient['quantity']
+        
+        # 2. Add all children stock
         children = conn.execute("SELECT id, quantity, base_unit FROM ingredients WHERE parent_id = ?", (ingredient_id,)).fetchall()
         for child in children:
             try:
+                # Convert child's current stock to parent's base unit
+                # This uses the new hierarchical lookup (child specific rule -> parent default -> density)
                 child_qty_in_parent_base = convert_units(child['quantity'], child['base_unit'], ingredient['base_unit'], child['id'], conn=conn)
-                total_pantry_quantity += child_qty_in_parent_base
+                total_available_in_parent_base += child_qty_in_parent_base
             except ValueError:
-                # If conversion fails, maybe ignore child quantity or add it as-is (safer to ignore to prevent incorrect deductions)
+                # If conversion fails, ignore this specific child's contribution
                 pass
 
-        needed = total_required - total_pantry_quantity
+        needed = total_required - total_available_in_parent_base
         if needed > 0:
-            # Get display unit for the shopping list
+            # Get display unit preference
             display_unit_row = conn.execute(
                 "SELECT unit FROM ingredient_view_units WHERE ingredient_id = ? AND view_name = 'pantry'",
                 (ingredient_id,)
@@ -1879,7 +1887,10 @@ def generate_shopping_list(meal_plan_id):
             display_unit = display_unit_row['unit'] if display_unit_row else ingredient['base_unit']
 
             # Convert needed quantity to display unit
-            display_quantity = convert_units(needed, ingredient['base_unit'], display_unit, ingredient_id, conn)
+            try:
+                display_quantity = convert_units(needed, ingredient['base_unit'], display_unit, ingredient_id, conn)
+            except ValueError:
+                display_quantity = needed # Fallback to base if display unit fails
 
             category = ingredient['category']
             if category not in shopping_list:

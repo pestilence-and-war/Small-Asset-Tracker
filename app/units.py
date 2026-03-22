@@ -60,7 +60,7 @@ def parse_quantity(quantity_str):
 
 
 def parse_quantity_and_unit(quantity_str):
-    """Parses a quantity string like '500 g', '1.5 liter', or '10oz' into a (quantity, unit) tuple.
+    """Parses a quantity string like '500 g', '1.5 cup diced', or '10oz' into a (quantity, unit) tuple.
 
     Args:
         quantity_str (str): The string to parse.
@@ -71,10 +71,8 @@ def parse_quantity_and_unit(quantity_str):
     if not quantity_str:
         return None, None
 
-    # Regex to capture the numeric/fractional part and the alphabetical unit part
-    # Group 1: Numeric part (including spaces for mixed numbers, decimals, and slashes for fractions)
-    # Group 2: Unit part (letters)
-    match = re.search(r"([\d\s./]+)\s*([a-zA-Z]+)", quantity_str.strip())
+    # Regex to capture the numeric/fractional part and the remaining part as the unit
+    match = re.search(r"^([\d\s./]+)\s*(.*)$", quantity_str.strip())
     if match:
         qty_part = match.group(1).strip()
         unit_part = match.group(2).strip().lower()
@@ -89,24 +87,33 @@ def parse_quantity_and_unit(quantity_str):
 def get_base_unit_type(unit):
     """Determines if a unit is for mass, volume, or count.
 
-    This is a simplified mapping based on common cooking units.
+    This handles simple units ('g', 'ml') and preparation units ('cup diced').
 
     Args:
-        unit (str): The unit to classify (e.g., 'g', 'ml', 'cup').
+        unit (str): The unit to classify (e.g., 'g', 'ml', 'cup diced').
 
     Returns:
         str or None: The type of unit ('mass', 'volume', 'count'), or None if
             the unit is not recognized.
     """
+    if not unit: return None
+    
+    # Check for prefix match in volume/mass
+    # This allows 'cup diced' to be recognized as 'volume'
+    # and 'oz chopped' to be recognized as 'mass'
+    
     # Mass
-    if unit in ['g', 'kg', 'lb', 'oz']:
-        return 'mass'
+    for m_unit in ['g', 'kg', 'lb', 'oz']:
+        if unit == m_unit or unit.startswith(m_unit + ' '):
+            return 'mass'
     # Volume
-    if unit in ['ml', 'l', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint', 'teaspoon', 'tablespoon', 'cc', 'fl oz', 'fl.oz', 'floz']:
-        return 'volume'
+    for v_unit in ['ml', 'l', 'cup', 'tbsp', 'tsp', 'gallon', 'quart', 'pint', 'teaspoon', 'tablespoon', 'cc', 'fl oz', 'fl.oz', 'floz']:
+        if unit == v_unit or unit.startswith(v_unit + ' '):
+            return 'volume'
     # Count
-    if unit in ['unit', 'units']:
-        return 'count'
+    for c_unit in ['unit', 'units', 'ea', 'each', 'pkg', 'package', 'can', 'bottle', 'box', 'piece', 'slice']:
+        if unit == c_unit or unit.startswith(c_unit + ' '):
+            return 'count'
     return None
 
 
@@ -129,31 +136,20 @@ def get_base_unit(unit_type):
     return None
 
 
-def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=None):
+def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=None, skip_hierarchical=False, last_unit=None):
     """Converts a given quantity and unit to its base unit quantity.
-
-    The base units are 'g' for mass, 'ml' for volume, and 'unit' for count.
-    The conversion can be direct (e.g., 'kg' to 'g'), or based on an
-    ingredient's density (e.g., 'cup' of flour to 'g').
 
     Args:
         quantity (float): The quantity to convert.
         unit (str): The unit of the quantity.
-        ingredient_id (int, optional): The ID of the ingredient, used for
-            density-based conversions. Defaults to None.
-        density_g_ml (float, optional): A provided density value to use
-            if ingredient_id is not provided. Defaults to None.
-        conn (sqlite3.Connection, optional): The database connection. If not
-            provided, a new one will be created. Defaults to None.
+        ingredient_id (int, optional): The ID of the ingredient.
+        density_g_ml (float, optional): Density to use if ingredient_id is None.
+        conn (sqlite3.Connection, optional): Database connection.
+        skip_hierarchical (bool, optional): If True, skips parent/child fallback.
+        last_unit (str, optional): The unit we just converted from, to prevent loops.
 
     Returns:
-        tuple: A tuple containing:
-            - float: The converted quantity.
-            - str: The base unit.
-            - str: The type of the base unit.
-
-    Raises:
-        ValueError: If the conversion cannot be performed.
+        tuple: (float: quantity, str: base_unit, str: base_unit_type)
     """
     close_conn = False
     if conn is None:
@@ -162,99 +158,104 @@ def convert_to_base(quantity, unit, ingredient_id=None, density_g_ml=None, conn=
 
     try:
         unit = unit.lower().strip()
-
         ingredient = None
-        parent_ingredient = None
+        parent_id = None
+        
         if ingredient_id:
             ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-            if ingredient and ingredient['parent_id']:
-                parent_ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
+            if ingredient:
+                parent_id = ingredient['parent_id']
+
+        # Determine actual density early for all conversion tiers
+        actual_density = density_g_ml
+        if ingredient and ingredient['density_g_ml']:
+            actual_density = ingredient['density_g_ml']
+        elif parent_id:
+            parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (parent_id,)).fetchone()
+            if parent: actual_density = parent['density_g_ml']
 
         source_unit_type = get_base_unit_type(unit)
         target_base_unit = ingredient['base_unit'] if ingredient else get_base_unit(source_unit_type)
         target_base_unit_type = ingredient['base_unit_type'] if ingredient else source_unit_type
 
-        if not source_unit_type:
-            raise ValueError(f"Unknown unit type for '{unit}'")
-        if not target_base_unit_type:
-            raise ValueError(f"Could not determine target unit type.")
+        if not source_unit_type or not target_base_unit_type:
+            raise ValueError(f"Unknown unit type for '{unit}' or target.")
 
         if unit == target_base_unit:
             return (quantity, target_base_unit, target_base_unit_type)
 
-        # Case 1: Same unit type (e.g., mass to mass, volume to volume)
-        if source_unit_type == target_base_unit_type:
-            # Direct conversion
-            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (unit, target_base_unit)).fetchone()
-            if res:
-                return (quantity * res['factor'], target_base_unit, target_base_unit_type)
-            # Reverse conversion
-            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (target_base_unit, unit)).fetchone()
-            if res:
-                return (quantity / res['factor'], target_base_unit, target_base_unit_type)
-
-        # Case 2: Different unit types (mass to volume or volume to mass)
-        if source_unit_type != target_base_unit_type and {source_unit_type, target_base_unit_type} == {'mass', 'volume'}:
-            density = density_g_ml
-            if ingredient and ingredient['density_g_ml']:
-                density = ingredient['density_g_ml']
-            elif parent_ingredient and parent_ingredient['density_g_ml']:
-                density = parent_ingredient['density_g_ml']
-
-            if not density:
-                # This is the error that the user was seeing.
-                raise ValueError(f"Cannot convert between mass and volume for '{ingredient['name'] if ingredient else 'this ingredient'}' without a density.")
-
-            # Path: Source -> ml -> g -> Target Base Unit
-            quantity_in_ml = 0
-
-            # Step 1: Convert source unit to ml
-            if source_unit_type == 'volume':
-                if unit == 'ml':
-                    quantity_in_ml = quantity
-                else:
-                    res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'ml'", (unit,)).fetchone()
-                    if not res:
-                        raise ValueError(f"No standard conversion factor found for '{unit}' to 'ml'")
-                    quantity_in_ml = quantity * res['factor']
-            elif source_unit_type == 'mass': # We need to get to ml via g and density
-                 # First convert to 'g'
-                quantity_in_g = 0
-                if unit == 'g':
-                    quantity_in_g = quantity
-                else:
-                    res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'g'", (unit,)).fetchone()
-                    if not res:
-                        raise ValueError(f"No standard conversion factor found for '{unit}' to 'g'")
-                    quantity_in_g = quantity * res['factor']
-                quantity_in_ml = quantity_in_g / density
-
-            # At this point, we have quantity_in_ml. Now convert to the target base unit.
-            if target_base_unit_type == 'volume': # Target is ml
-                 return (quantity_in_ml, 'ml', 'volume')
-            elif target_base_unit_type == 'mass': # Target is g
-                quantity_in_g = quantity_in_ml * density
-                return (quantity_in_g, 'g', 'mass')
-
-        # Fallback for other cases, like ingredient-specific non-density conversions
+        # 1. Check conversion for this specific ingredient (Highest Priority)
         if ingredient_id:
-            # Check child conversions first
-            res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, unit, target_base_unit)).fetchone()
-            if res:
-                return (quantity * res['factor'], target_base_unit, target_base_unit_type)
-            res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, target_base_unit, unit)).fetchone()
-            if res:
-                return (quantity / res['factor'], target_base_unit, target_base_unit_type)
-            
-            # Then check parent conversions if it's a child
-            if ingredient and ingredient['parent_id']:
-                parent_id = ingredient['parent_id']
-                res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (parent_id, unit, target_base_unit)).fetchone()
-                if res:
+            # Look for ANY custom rule for this unit
+            # Forward: unit -> something
+            res = conn.execute("SELECT factor, to_unit FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ?", (ingredient_id, unit)).fetchone()
+            if res and res['to_unit'] != last_unit:
+                if res['to_unit'] == target_base_unit:
                     return (quantity * res['factor'], target_base_unit, target_base_unit_type)
-                res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (parent_id, target_base_unit, unit)).fetchone()
-                if res:
+                else:
+                    # Bridge: Custom Unit -> Other Unit (e.g., pkg -> oz)
+                    qty_in_other = quantity * res['factor']
+                    return convert_to_base(qty_in_other, res['to_unit'], ingredient_id=ingredient_id, density_g_ml=actual_density, conn=conn, skip_hierarchical=True, last_unit=unit)
+
+            # Reciprocal: something -> unit
+            res = conn.execute("SELECT factor, from_unit FROM ingredient_conversions WHERE ingredient_id = ? AND to_unit = ?", (ingredient_id, unit)).fetchone()
+            if res and res['factor'] != 0 and res['from_unit'] != last_unit:
+                if res['from_unit'] == target_base_unit:
                     return (quantity / res['factor'], target_base_unit, target_base_unit_type)
+                else:
+                    # Bridge: unit -> other (reciprocal)
+                    qty_in_other = quantity / res['factor']
+                    return convert_to_base(qty_in_other, res['from_unit'], ingredient_id=ingredient_id, density_g_ml=actual_density, conn=conn, skip_hierarchical=True, last_unit=unit)
+
+        # 2. Check Standard Conversions (Same type: mass->mass, vol->vol)
+        if source_unit_type == target_base_unit_type:
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (unit, target_base_unit)).fetchone()
+            if res: return (quantity * res['factor'], target_base_unit, target_base_unit_type)
+            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (target_base_unit, unit)).fetchone()
+            if res: return (quantity / res['factor'], target_base_unit, target_base_unit_type)
+
+        # 3. Check Mass <-> Volume using Density
+        if {source_unit_type, target_base_unit_type} == {'mass', 'volume'}:
+            if actual_density:
+                std_source_base = get_base_unit(source_unit_type)
+                qty_in_std_base = quantity
+                if unit != std_source_base:
+                    # Convert to standard base (g or ml) for density math
+                    res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (unit, std_source_base)).fetchone()
+                    if res: qty_in_std_base = quantity * res['factor']
+                    else:
+                        res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (std_source_base, unit)).fetchone()
+                        if res: qty_in_std_base = quantity / res['factor']
+                
+                qty_in_target_std_base = qty_in_std_base / actual_density if source_unit_type == 'mass' else qty_in_std_base * actual_density
+                target_std_base = get_base_unit(target_base_unit_type)
+
+                final_qty = qty_in_target_std_base
+                if target_base_unit != target_std_base:
+                    res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (target_std_base, target_base_unit)).fetchone()
+                    if res: final_qty = qty_in_target_std_base * res['factor']
+                    else:
+                        res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (target_base_unit, target_std_base)).fetchone()
+                        if res: final_qty = qty_in_target_std_base / res['factor']
+                
+                return (final_qty, target_base_unit, target_base_unit_type)
+
+        # 4. Hierarchical Fallbacks (Inherit Parent rules OR borrow from Children)
+        if ingredient_id and not skip_hierarchical:
+            # Look Upward (If child, check parent)
+            if parent_id:
+                try:
+                    return convert_to_base(quantity, unit, ingredient_id=parent_id, density_g_ml=actual_density, conn=conn, skip_hierarchical=True)
+                except ValueError: pass
+            
+            # Look Downward (If parent, check children for a representative factor)
+            children = conn.execute("SELECT id FROM ingredients WHERE parent_id = ?", (ingredient_id,)).fetchall()
+            for child in children:
+                try:
+                    child_qty_in_base, child_base, _ = convert_to_base(quantity, unit, ingredient_id=child['id'], density_g_ml=actual_density, conn=conn, skip_hierarchical=True)
+                    final_qty, _, _ = convert_to_base(child_qty_in_base, child_base, density_g_ml=actual_density, conn=conn)
+                    return (final_qty, target_base_unit, target_base_unit_type)
+                except ValueError: continue
 
         raise ValueError(f"No conversion factor found for '{unit}' to '{target_base_unit}'")
     finally:
@@ -543,17 +544,16 @@ def convert_from_base(base_quantity, base_unit, density_g_ml=None, conn=None):
 def convert_units(quantity, from_unit, to_unit, ingredient_id=None, conn=None):
     """A general-purpose function to convert between any two units.
 
-    This function leverages `convert_to_base` to first convert the source
-    quantity to its base unit, and then converts it to the target unit.
+    This function leverages `convert_to_base` to convert both the source
+    and the target units to the base unit, then calculates the ratio.
+    This ensures that multi-hop and hierarchical rules work in both directions.
 
     Args:
         quantity (float): The quantity to convert.
         from_unit (str): The starting unit.
         to_unit (str): The target unit.
-        ingredient_id (int, optional): The ID of the ingredient, required for
-            conversions between mass and volume. Defaults to None.
-        conn (sqlite3.Connection, optional): The database connection. If not
-            provided, a new one will be created. Defaults to None.
+        ingredient_id (int, optional): The ID of the ingredient.
+        conn (sqlite3.Connection, optional): Database connection.
 
     Returns:
         float: The converted quantity.
@@ -573,77 +573,22 @@ def convert_units(quantity, from_unit, to_unit, ingredient_id=None, conn=None):
         close_conn = True
 
     try:
-        # Step 1: Convert the initial quantity to its base unit (g or ml)
-        base_quantity, base_unit, base_unit_type = convert_to_base(quantity, from_unit, ingredient_id, conn=conn)
+        # Step 1: Convert the source quantity to the base unit
+        # This handles custom rules, parent/child borrowing, and bridging (e.g. unit -> oz -> g)
+        qty_in_base, base_unit, _ = convert_to_base(quantity, from_unit, ingredient_id, conn=conn)
 
-        to_unit_type = get_base_unit_type(to_unit)
+        # Step 2: Determine how much 1 unit of the target unit is worth in the base unit
+        # We use the same smart logic to find the 'value' of the target unit.
+        try:
+            target_unit_value_in_base, _, _ = convert_to_base(1.0, to_unit, ingredient_id, conn=conn)
+        except ValueError:
+            # If we can't find a path to the base unit for the target unit, we can't convert.
+            raise ValueError(f"Could not find a conversion path from '{from_unit}' to '{to_unit}'")
 
-        if not to_unit_type:
-            raise ValueError(f"Unknown unit type for '{to_unit}'")
+        if target_unit_value_in_base == 0:
+            return 0
 
-        # Case 0: Specific ingredient conversion (highest priority, handles type mismatches like oz -> unit)
-        res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND ((from_unit = ? AND to_unit = ?) OR (from_unit = ? AND to_unit = ?))",
-                           (ingredient_id, from_unit, to_unit, to_unit, from_unit)).fetchone()
-        if res:
-            # We found a custom conversion for this specific pair
-            # Let's check the direction
-            direction_res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, from_unit, to_unit)).fetchone()
-            if direction_res:
-                return base_quantity * direction_res['factor']
-            else: # Must be the reverse
-                reverse_res = conn.execute("SELECT factor FROM ingredient_conversions WHERE ingredient_id = ? AND from_unit = ? AND to_unit = ?", (ingredient_id, to_unit, from_unit)).fetchone()
-                return base_quantity / reverse_res['factor']
-
-        # Case 1: Target unit is the same type as the base unit (e.g., g -> oz, ml -> cup)
-        if to_unit_type == base_unit_type:
-            if to_unit == base_unit:
-                return base_quantity
-            # Find a conversion factor
-            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (base_unit, to_unit)).fetchone()
-            if res:
-                return base_quantity * res['factor']
-            res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = ?", (to_unit, base_unit)).fetchone()
-            if res:
-                return base_quantity / res['factor']
-
-        # Case 2: Target unit is a different type (mass <-> volume)
-        elif {to_unit_type, base_unit_type} == {'mass', 'volume'}:
-            ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-            if not ingredient:
-                raise ValueError("Ingredient not found.")
-            
-            density = ingredient['density_g_ml']
-            if (not density or density <= 0) and ingredient['parent_id']:
-                parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (ingredient['parent_id'],)).fetchone()
-                if parent:
-                    density = parent['density_g_ml']
-
-            if not density:
-                raise ValueError(f"Density required to convert between {base_unit_type} and {to_unit_type} for '{ingredient['name']}'.")
-
-            # Path: base_unit -> ml -> to_unit
-            quantity_in_ml = 0
-            if base_unit_type == 'volume': # base_unit is ml
-                quantity_in_ml = base_quantity
-            elif base_unit_type == 'mass': # base_unit is g
-                quantity_in_ml = base_quantity / density
-
-            # Now we have the quantity in ml, convert it to the to_unit
-            if to_unit_type == 'volume':
-                if to_unit == 'ml':
-                    return quantity_in_ml
-                res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'ml'", (to_unit,)).fetchone()
-                if res:
-                    return quantity_in_ml / res['factor']
-            elif to_unit_type == 'mass':
-                quantity_in_g = quantity_in_ml * density
-                if to_unit == 'g':
-                    return quantity_in_g
-                res = conn.execute("SELECT factor FROM unit_conversions WHERE from_unit = ? AND to_unit = 'g'", (to_unit,)).fetchone()
-                if res:
-                    return quantity_in_g / res['factor']
-
-        raise ValueError(f"Could not find a conversion path from '{from_unit}' to '{to_unit}'")
+        return qty_in_base / target_unit_value_in_base
 
     finally:
         if close_conn and conn:

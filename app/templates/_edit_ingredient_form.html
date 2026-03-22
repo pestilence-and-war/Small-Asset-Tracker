@@ -74,23 +74,33 @@
         {% endif %}
 
         <!-- Add Manual Conversion Trigger -->
-        <div style="background: #fff; padding: 0.75rem; border-radius: 6px; border: 1px dashed var(--border);">
-            <p style="font-size: 0.8125rem; margin-bottom: 0.5rem; font-weight: 500;">Add Conversion Override</p>
-            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem;">
-                <span>1</span>
-                <input type="text" id="manual-from-unit" placeholder="ea, pkg..." style="width: 60px; margin: 0; padding: 0.25rem;">
-                <span>=</span>
-                <input type="number" id="manual-factor" step="any" placeholder="1.5" style="width: 60px; margin: 0; padding: 0.25rem;">
-                <select id="manual-to-unit" style="width: 80px; margin: 0; padding: 0.25rem;">
-                    {% for unit in ingredient.compatible_units %}
-                        <option value="{{ unit }}" {% if unit == ingredient.base_unit %}selected{% endif %}>{{ unit }}</option>
-                    {% endfor %}
-                </select>
-                <button type="button" 
-                        onclick="addManualConversion({{ ingredient.id }}, '{{ view_name }}')"
-                        class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
-                    Add
-                </button>
+        <div style="background: #fff; padding: 1rem; border-radius: 6px; border: 1px dashed var(--border);">
+            <p style="font-size: 0.8125rem; margin-bottom: 0.75rem; font-weight: 600; color: var(--text-main);">Define a Package or Unit Size</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;">
+                    <span>1</span>
+                    <input type="text" id="manual-from-unit" placeholder="pkg, box, ea..." style="flex: 1; min-width: 80px; margin: 0; padding: 0.4rem;">
+                    <span>contains</span>
+                    <input type="number" id="manual-factor" step="any" placeholder="qty" style="flex: 1; min-width: 70px; margin: 0; padding: 0.4rem;">
+                    <select id="manual-to-unit" style="flex: 1.2; min-width: 90px; margin: 0; padding: 0.4rem;">
+                        {% for unit in ingredient.compatible_units %}
+                            <option value="{{ unit }}" {% if unit == ingredient.base_unit %}selected{% endif %}>{{ unit }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Example: 1 <strong>pkg</strong> = 8 <strong>unit</strong></p>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Preparation: 1 <strong>cup diced</strong> = 180 <strong>g</strong></p>
+                    </div>
+                    <button type="button" 
+                            onclick="addManualConversion({{ ingredient.id }}, '{{ view_name }}')"
+                            class="button-secondary" style="padding: 0.4rem 1rem; font-size: 0.8125rem; font-weight: 600;">
+                        Add Conversion
+                    </button>
+                </div>
             </div>
         </div>
     </div>
