@@ -86,10 +86,10 @@
             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;">
                     <span>1</span>
-                    <input type="text" id="manual-from-unit" placeholder="pkg, box, ea..." style="flex: 1; min-width: 80px; margin: 0; padding: 0.4rem;">
+                    <input type="text" name="manual_from_unit" id="manual-from-unit" placeholder="pkg, box, ea..." style="flex: 1; min-width: 80px; margin: 0; padding: 0.4rem;">
                     <span>contains</span>
-                    <input type="number" id="manual-factor" step="any" placeholder="qty" style="flex: 1; min-width: 70px; margin: 0; padding: 0.4rem;">
-                    <select id="manual-to-unit" style="flex: 1.2; min-width: 90px; margin: 0; padding: 0.4rem;">
+                    <input type="number" name="manual_factor" id="manual-factor" step="any" placeholder="qty" style="flex: 1; min-width: 70px; margin: 0; padding: 0.4rem;">
+                    <select name="manual_to_unit" id="manual-to-unit" style="flex: 1.2; min-width: 90px; margin: 0; padding: 0.4rem;">
                         {% for unit in ingredient.compatible_units %}
                             <option value="{{ unit }}" {% if unit == ingredient.base_unit %}selected{% endif %}>{{ unit }}</option>
                         {% endfor %}
@@ -101,10 +101,8 @@
                         <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Example: 1 <strong>pkg</strong> = 8 <strong>unit</strong></p>
                         <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Density: 1 <strong>cup</strong> = ~240 <strong>g</strong> (for water)</p>
                     </div>
-                    <button type="button" 
-                            onclick="addManualConversion({{ ingredient.id }}, '{{ view_name }}')"
-                            class="button-secondary" style="padding: 0.4rem 1rem; font-size: 0.8125rem; font-weight: 600;">
-                        Add Conversion
+                    <button type="submit" class="button-secondary" style="padding: 0.4rem 1rem; font-size: 0.8125rem; font-weight: 600;">
+                        Save All Changes
                     </button>
                 </div>
             </div>

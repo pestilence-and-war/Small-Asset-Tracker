@@ -804,9 +804,8 @@ def edit_ingredient_form(ing_id):
 def edit_ingredient(ing_id):
     """Handles the submission of the ingredient edit form.
 
-    This route manages changes to an ingredient's name, quantity, unit, and
-    category. It can trigger a density prompt if the unit type changes
-    between mass and volume without a known density.
+    This route manages changes to an ingredient's properties and now
+    handles density and optional custom conversions in a single step.
     """
     view_name = request.form.get('view_name', 'pantry')
     new_name = request.form.get('name', '').strip().lower()
@@ -814,10 +813,12 @@ def edit_ingredient(ing_id):
     new_unit = request.form.get('unit')
     new_category = request.form.get('category')
     parent_id = request.form.get('parent_id')
-    if not parent_id:
-        parent_id = None
-    else:
-        parent_id = int(parent_id)
+    density_g_ml_str = request.form.get('density_g_ml')
+    
+    # Optional manual conversion fields (mapped from template IDs to names)
+    manual_from = request.form.get('manual_from_unit', '').strip().lower()
+    manual_factor = request.form.get('manual_factor')
+    manual_to = request.form.get('manual_to_unit')
 
     if not new_name or not new_unit:
         ingredient = get_ingredient_by_id(ing_id, view_name)
@@ -826,64 +827,38 @@ def edit_ingredient(ing_id):
     conn = get_db_connection()
     try:
         with conn:
-            current_ingredient = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ing_id,)).fetchone()
-            if not current_ingredient:
-                return "Ingredient not found", 404
-
-            current_base_unit_type = current_ingredient['base_unit_type']
+            # 1. Parse values
             new_quantity = parse_quantity(new_quantity_str)
-            new_unit_type = get_base_unit_type(new_unit)
+            density_g_ml = float(density_g_ml_str) if (density_g_ml_str and density_g_ml_str.strip()) else None
+            
+            # 2. Update metadata and density first
+            conn.execute(
+                "UPDATE ingredients SET name = ?, category = ?, parent_id = ?, density_g_ml = ? WHERE id = ?",
+                (new_name, new_category, int(parent_id) if parent_id else None, density_g_ml, ing_id)
+            )
 
-            if not new_unit_type:
-                raise ValueError(f"Invalid unit provided: {new_unit}")
+            # 3. Update quantity (smart convert_to_base now uses updated density/parent)
+            quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
+            conn.execute(
+                "UPDATE ingredients SET quantity = ?, base_unit = ?, base_unit_type = ? WHERE id = ?",
+                (quantity_in_base, final_base_unit, final_base_unit_type, ing_id)
+            )
 
-            # Scenario 1: Unit type isn't changing significantly (or changing to 'count')
-            if new_unit_type == current_base_unit_type or new_unit_type == 'count':
-                if new_unit_type != current_base_unit_type:
-                    quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, conn=conn)
-                    conn.execute(
-                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ?, parent_id = ? WHERE id = ?",
-                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, parent_id, ing_id)
-                    )
-                else:
-                    quantity_in_base, _, _ = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
-                    conn.execute("UPDATE ingredients SET name = ?, quantity = ?, category = ?, parent_id = ? WHERE id = ?", (new_name, quantity_in_base, new_category, parent_id, ing_id))
+            # 4. Save display unit preference
+            conn.execute("""
+                INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
+                ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
+            """, (ing_id, view_name, new_unit))
 
-                conn.execute("""
-                    INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
-                    ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
-                """, (ing_id, view_name, new_unit))
-
-            # Scenario 2: Unit type is changing between mass/volume and density is required
-            else:
-                density = current_ingredient['density_g_ml']
-                if (not density or density <= 0) and current_ingredient['parent_id']:
-                    parent = conn.execute("SELECT density_g_ml FROM ingredients WHERE id = ?", (current_ingredient['parent_id'],)).fetchone()
-                    if parent:
-                        density = parent['density_g_ml']
-
-                if not density:
-                    # The 'with conn' block will close the connection, so we can safely return a prompt here.
-                    # No changes have been committed.
-                    return render_template(
-                        '_update_density_prompt.html',
-                        ingredient=dict(current_ingredient), new_name=new_name,
-                        new_quantity=new_quantity, new_unit=new_unit, view_name=view_name
-                    )
-                else: # Density exists (locally or inherited)
-                    quantity_in_base, final_base_unit, final_base_unit_type = convert_to_base(new_quantity, new_unit, ing_id, conn=conn)
-                    conn.execute(
-                        "UPDATE ingredients SET name = ?, quantity = ?, base_unit = ?, base_unit_type = ?, category = ?, parent_id = ? WHERE id = ?",
-                        (new_name, quantity_in_base, final_base_unit, final_base_unit_type, new_category, parent_id, ing_id)
-                    )
-                    conn.execute("""
-                        INSERT INTO ingredient_view_units (ingredient_id, view_name, unit) VALUES (?, ?, ?)
-                        ON CONFLICT(ingredient_id, view_name) DO UPDATE SET unit = excluded.unit
-                    """, (ing_id, view_name, new_unit))
+            # 5. Optional manual conversion addition
+            if manual_from and manual_factor and manual_to:
+                conn.execute(
+                    "INSERT OR REPLACE INTO ingredient_conversions (ingredient_id, from_unit, to_unit, factor) VALUES (?, ?, ?, ?)",
+                    (ing_id, manual_from, manual_to, float(manual_factor))
+                )
 
     except (ValueError, TypeError) as e:
         print(f"Error in edit_ingredient: {e}")
-        # Rollback is handled by the 'with' statement.
     finally:
         if conn: conn.close()
 
