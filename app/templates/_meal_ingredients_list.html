@@ -1,13 +1,37 @@
-<h4>Ingredients for {{ meal.name }}</h4>
-<ul class="meal-ingredients">
+<ul class="meal-ingredients" style="display: grid; gap: 0.75rem;">
     {% for item in meal_ingredients %}
-    <li>
-        <span>{{ item.name }} - {{ item.pretty_quantity }}</span>
-        <button hx-delete="/remove_ingredient_from_meal/{{ meal.id }}/{{ item.meal_ingredient_id }}" hx-target="closest li" hx-swap="outerHTML" class="button-danger button-small">
-            Remove
-        </button>
+    <li class="ingredient-item" style="padding: 0.75rem 1rem; margin-bottom: 0;">
+        <div class="ingredient-display" style="display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 1rem; width: 100%;">
+            <span class="ingredient-name" style="font-weight: 500;">{{ item.name }}</span>
+            
+            <span class="ingredient-qty" style="background: #f1f5f9; color: var(--text-main); font-weight: 600; padding: 0.25rem 0.625rem; border-radius: 6px; font-size: 0.875rem;">
+                {{ item.display_quantity | format_fraction }}
+            </span>
+
+            <form class="unit-selector-form" style="margin-bottom: 0; padding: 0; border: none; box-shadow: none;">
+                <select name="unit"
+                        hx-post="/update_recipe_ingredient_unit/{{ meal.id }}/{{ item.ingredient_id }}"
+                        hx-trigger="change"
+                        hx-target="#meal-ingredients-list"
+                        hx-swap="innerHTML"
+                        style="margin-bottom: 0; padding: 0.375rem 0.5rem; font-size: 0.8125rem; width: auto; min-width: 80px;">
+                    {% for unit in item.compatible_units %}
+                    <option value="{{ unit }}" {% if unit == item.display_unit %}selected{% endif %}>
+                        {{ unit }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <button hx-delete="/remove_ingredient_from_meal/{{ meal.id }}/{{ item.meal_ingredient_id }}" hx-target="closest li" hx-swap="outerHTML" class="button-danger" style="padding: 0.375rem; border-radius: 4px;">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+            </button>
+        </div>
     </li>
     {% else %}
-    <li>No ingredients in this recipe yet.</li>
+    <li class="card" style="text-align: center; color: var(--text-muted); padding: 2rem; margin-bottom: 0; border-style: dashed;">
+        <i data-lucide="package-plus" style="width: 32px; height: 32px; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+        <p>No ingredients in this recipe yet.</p>
+    </li>
     {% endfor %}
 </ul>

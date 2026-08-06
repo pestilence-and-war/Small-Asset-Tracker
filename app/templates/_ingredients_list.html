@@ -1,9 +1,19 @@
-<div id="ingredient-list-container" hx-swap-oob="true">
-    <ul id="ingredient-list">
-        {% for ingredient in ingredients %}
+<div class="pantry-grid">
+    {% for category, ingredients_in_category in ingredients.items() %}
+    <div class="pantry-category-card" id="cat-{{ category|replace(' ', '-') }}">
+        <h3 class="category-title">{{ category }}</h3>
+        <ul id="ingredient-list-{{ category }}" class="ingredient-list">
+            {% for ingredient in ingredients_in_category %}
             {% with ingredient=ingredient, show_edit_buttons=show_edit_buttons %}
-                {% include '_ingredient_item.html' %}
+            {% include '_ingredient_item.html' %}
             {% endwith %}
-        {% endfor %}
-    </ul>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">
+        <i data-lucide="search-x" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+        <p>No ingredients found.</p>
+    </div>
+    {% endfor %}
 </div>

@@ -7,7 +7,7 @@ pantry.db
 
 # Python cache
 __pycache__/
-*.py[cod]
+*.pyc
 
 # Environment variables
 .env

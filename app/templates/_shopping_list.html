@@ -1,0 +1,24 @@
+<div id="shopping-list">
+    {% if shopping_list %}
+        {% for category, ingredients in shopping_list.items() %}
+            <div class="category-section" style="margin-bottom: 1.5rem;">
+                <h4 style="text-transform: capitalize; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.75rem; color: var(--primary);">{{ category }}</h4>
+                <ul class="shopping-list-category" style="display: grid; gap: 0.5rem;">
+                    {% for ingredient in ingredients %}
+                        <li style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9375rem; padding: 0.25rem 0;">
+                            <span class="ingredient-name" style="font-weight: 500;">{{ ingredient.name }}</span>
+                            <div style="background: #eef2ff; padding: 0.125rem 0.625rem; border-radius: 999px; font-weight: 600; color: var(--primary); font-size: 0.8125rem;">
+                                {{ "%.2f"|format(ingredient.quantity) }} {{ ingredient.unit }}
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div style="text-align: center; color: var(--text-muted); padding: 1rem 0;">
+            <i data-lucide="check-circle" style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--secondary); opacity: 0.5;"></i>
+            <p>Your shopping list is empty. You have everything you need!</p>
+        </div>
+    {% endif %}
+</div>

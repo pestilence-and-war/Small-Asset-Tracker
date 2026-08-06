@@ -1,35 +1,93 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recipe Manager</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>Recipe Manager</h1>
+<div class="pantry-header" style="margin-bottom: 2rem;">
+    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="book-open" style="color: var(--secondary);"></i> Recipe Manager</h1>
+    <p style="color: var(--text-muted);">Create, import, and manage your collection of recipes.</p>
+</div>
 
-        <!-- Add New Meal Form -->
-        <div id="add-meal-container">
-            <h2>Add New Meal</h2>
+<div class="recipe-management-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-bottom: 2.5rem;">
+    <!-- Add New Meal Form -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="plus-circle" style="color: var(--primary);"></i> Add New Meal</h2>
+        <div id="add-meal-container" class="card">
             <form hx-post="/add_meal" hx-target="#meals-list-container" hx-swap="innerHTML">
-                <input type="text" name="meal_name" placeholder="New meal name..." required>
-                <button type="submit" class="button-primary">Add Meal</button>
+                <label for="meal_name">Meal Name</label>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <input type="text" name="meal_name" id="meal_name" placeholder="New meal name..." required style="margin-bottom: 0;">
+                    <button type="submit" style="white-space: nowrap;">
+                        <i data-lucide="plus"></i> Add
+                    </button>
+                </div>
             </form>
         </div>
 
-        <hr>
-
-        <!-- List of Meals -->
-        <div id="meals-list-container">
-            {% include '_meals_list.html' %}
+        <h2 style="display: flex; align-items: center; gap: 0.5rem; margin-top: 2rem;"><i data-lucide="image" style="color: var(--accent);"></i> Import from Image</h2>
+        <div class="import-section card">
+            <form action="/import_recipe_from_image" method="post" enctype="multipart/form-data">
+                <label for="recipe_image">Choose a recipe photo</label>
+                <input type="file" name="recipe_image" id="recipe_image" accept="image/*" required style="padding: 0.5rem 0;">
+                <button type="submit" style="width: 100%;" class="button-secondary">
+                    <i data-lucide="upload"></i> Import Image
+                </button>
+            </form>
         </div>
+    </section>
 
-        <div id="user-prompts"></div>
+    <!-- Import Recipe from Text Form -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="file-text" style="color: var(--primary);"></i> Import from Text</h2>
+        <div id="import-recipe-container" class="card">
+            <form hx-post="/import_recipe_process" hx-target="#content" hx-swap="innerHTML show:window:top" hx-indicator="#import-indicator">
+                <label for="recipe_text">Paste Recipe Text (Ingredients & Instructions)</label>
+                <textarea name="recipe_text" id="recipe_text" rows="10" placeholder="Paste your recipe here..." required style="min-height: 180px;"></textarea>
+                <button type="submit" style="width: 100%;">
+                    <i data-lucide="wand-2"></i> Process Recipe
+                </button>
+                <div id="import-indicator" class="htmx-indicator" style="margin-top: 1rem; text-align: center;">
+                    <i data-lucide="loader" class="animate-spin" style="display: inline-block;"></i>
+                    <span style="color: var(--primary); font-weight: 500;">Analyzing recipe...</span>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
 
-        <p><a href="/" class="button">Back to Main Page</a></p>
+<!-- Filter Meals Form -->
+<h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="filter" style="color: var(--primary);"></i> Filter by Ingredients</h2>
+<form id="filter-form" hx-post="/filter_meals" hx-target="#meals-list-container" hx-swap="innerHTML" class="card">
+    <div class="filter-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+        {% for category, ingredients_in_category in ingredients_by_category.items() %}
+            <div class="filter-category-group">
+                <label for="filter-{{ category }}" style="text-transform: capitalize;">{{ category }}</label>
+                <select name="ingredient_ids" id="filter-{{ category }}" multiple style="height: 120px; font-size: 0.875rem;">
+                    {% for ingredient in ingredients_in_category %}
+                        <option value="{{ ingredient.id }}">{{ ingredient.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endfor %}
     </div>
-</body>
-</html>
+    <div class="form-buttons" style="display: flex; gap: 1rem;">
+        <button type="submit">
+            <i data-lucide="check-circle"></i> Apply Filters
+        </button>
+        <button type="button"
+                hx-post="/filter_meals"
+                hx-target="#meals-list-container"
+                hx-swap="innerHTML"
+                name="ingredient_ids"
+                value="any"
+                class="button-secondary"
+                onclick="document.querySelectorAll('#filter-form select').forEach(s => s.value = '');">
+            <i data-lucide="rotate-ccw"></i> Reset Filters
+        </button>
+    </div>
+</form>
+
+<hr>
+
+<!-- List of Meals -->
+<h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="chef-hat" style="color: var(--secondary);"></i> Available Meals</h2>
+<div id="meals-list-container">
+    {% include '_meals_list.html' %}
+</div>
+
+<div id="user-prompts"></div>

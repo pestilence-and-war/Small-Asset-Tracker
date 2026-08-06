@@ -4,47 +4,154 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pantry Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
-<body>
+<body hx-boost="true">
+    <div id="scroll-sentinel" style="position: absolute; top: 0; height: 1px; width: 1px; pointer-events: none;"></div>
     <div class="container">
-        <header>
-            <h1>Pantry Manager</h1>
-            <nav>
-                <a href="/" class="active">Home</a>
-                <a href="/pantry">Edit Pantry</a>
-                <a href="/recipes">Recipe Manager</a>
-                <button type="button" onclick="openModal()" class="button-secondary">Unit Converter</button>
-            </nav>
-        </header>
-
-        <!-- Cook a Meal Section -->
-        <h2>Cook a Meal</h2>
-        <form action="/start_cooking_session" method="POST" target="_blank">
-            <select name="meal_id" required>
-                <option value="">Select a meal...</option>
-                {% for meal in meals %}
-                    <option value="{{ meal.id }}">{{ meal.name }}</option>
-                {% endfor %}
-            </select>
-            <input type="number" name="portion" value="1" min="0.5" step="0.5" placeholder="Portion">
-            <button type="submit">Start Cooking</button>
-        </form>
-
-        <hr>
-
-        <!-- Pantry Summary -->
-        <h2>Pantry Summary</h2>
-        <div id="ingredient-list-container">
-            {% with show_edit_buttons=False %}
-                {% include '_ingredients_list.html' %}
-            {% endwith %}
+        <div class="header-wrapper">
+            <header>
+                <a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML show:window:top" class="logo-section">
+                    <div class="logo-badge"><i data-lucide="shopping-basket"></i></div>
+                    <h1>Pantry Manager</h1>
+                </a>
+                <nav>
+                    <a href="/pantry" hx-get="/pantry" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
+                        <i data-lucide="package"></i> Pantry
+                    </a>
+                    <a href="/recipes" hx-get="/recipes" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
+                        <i data-lucide="book-open"></i> Recipes
+                    </a>
+                    <a href="/meal-plan" hx-get="/meal-plan" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
+                        <i data-lucide="calendar"></i> Meal Plan
+                    </a>
+                    <button type="button" onclick="openModal('converter-modal')" class="nav-link" style="border:none; padding: 0.625rem 1rem;">
+                        <i data-lucide="refresh-cw"></i> Converter
+                    </button>
+                    <a href="/scanner" hx-get="/scanner" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
+                        <i data-lucide="scan-barcode"></i> Scanner
+                    </a>
+                    <a href="/data" hx-get="/data" hx-target="#content" hx-swap="innerHTML show:window:top" class="nav-link">
+                        <i data-lucide="database"></i> Data
+                    </a>
+                </nav>
+            </header>
         </div>
-        <a href="/pantry" class="button">Edit Pantry</a>
 
+        <main id="content">
+            {% if page_content %}
+                {{ page_content | safe }}
+            {% else %}
+                {% include '_home_content.html' %}
+            {% endif %}
+        </main>
     </div>
 
     {% include '_converter_modal.html' %}
+
+    <button id="back-to-top" title="Go to top">
+        <i data-lucide="arrow-up"></i>
+    </button>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Back to Top Button Logic
+        const backToTopButton = document.getElementById('back-to-top');
+        window.onscroll = function() {
+            if (document.body.scrollTop > 200 || document.documentElement.scrollTop > 200) {
+                backToTopButton.classList.add('visible');
+            } else {
+                backToTopButton.classList.remove('visible');
+            }
+        };
+
+        backToTopButton.onclick = function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        };
+
+        // Header Shrink Logic using IntersectionObserver (Fixes Flashing)
+        const header = document.querySelector('header');
+        const sentinel = document.getElementById('scroll-sentinel');
+        
+        const observer = new IntersectionObserver((entries) => {
+            // When sentinel is NOT intersecting (scrolled down), add class
+            if (!entries[0].isIntersecting) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
+        }, { threshold: [0] });
+
+        observer.observe(sentinel);
+
+        document.addEventListener('htmx:after-request', function(event) {
+            // Re-initialize icons after HTMX content swap
+            lucide.createIcons();
+
+            // Remove 'active' class from all nav links
+            document.querySelectorAll('nav a').forEach(function(link) {
+                link.classList.remove('active');
+            });
+
+            // Add 'active' class to the clicked link
+            let targetUrl = event.detail.requestConfig.path;
+            let activeLink = document.querySelector('nav a[href="' + targetUrl + '"]');
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+        });
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openModalAndTab(tabName) {
+            openModal('converter-modal');
+
+            // Programmatically click the correct tab button
+            const tabButtons = document.querySelectorAll('.tablinks');
+            const targetButton = Array.from(tabButtons).find(btn => btn.textContent.includes(tabName));
+
+            if (targetButton) {
+                targetButton.click();
+            }
+        }
+
+        // Close modal if user clicks outside of it
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+
+        // Close search results if clicked outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.search-container')) {
+                document.querySelectorAll('.search-results').forEach(el => el.innerHTML = '');
+                // Also clear results that might not have the search-results class but are used for search
+                const cookingResults = document.getElementById('search-results-for-cooking');
+                if (cookingResults) cookingResults.innerHTML = '';
+                const recipeResults = document.getElementById('search-results-for-recipe');
+                if (recipeResults) recipeResults.innerHTML = '';
+                const pantryResults = document.getElementById('search-results');
+                if (pantryResults) pantryResults.innerHTML = '';
+            }
+        });
+    </script>
 </body>
 </html>

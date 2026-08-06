@@ -1,31 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pantry Management</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Pantry Management</h1>
-            <nav>
-                <a href="/">Home</a>
-                <a href="/pantry" class="active">Edit Pantry</a>
-            </nav>
-        </header>
+<div class="pantry-header" style="margin-bottom: 2rem;">
+    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="package" style="color: var(--primary);"></i> Pantry Management</h1>
+    <p style="color: var(--text-muted);">Manage your current stock and add new ingredients.</p>
+</div>
 
-        <!-- Add Ingredient Section -->
-        <h2>Add Ingredient</h2>
-        <form id="add-ingredient-form" hx-post="/add_ingredient" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="if(event.detail.requestConfig.verb === 'post') this.reset()">
-            <input type="text" name="ingredient_name" placeholder="Enter ingredient name" required
-                   hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
+<div class="pantry-management-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-bottom: 2.5rem;">
+    <!-- Add Ingredient Section -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="plus-circle" style="color: var(--secondary);"></i> Add New Ingredient</h2>
+        <form id="add-ingredient-form" hx-post="/add_ingredient" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="if(event.detail.requestConfig.verb === 'post') this.reset()" class="card">
+            <label for="q">Ingredient Name</label>
+            <input type="text" name="q" id="q" placeholder="Enter ingredient name" required
+                   hx-get="/search_pantry_ingredients" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
                    autocomplete="off">
             <div id="search-results"></div>
-            <input type="number" name="quantity" placeholder="Quantity" value="1" min="0" step="any">
-            <input type="text" name="unit" placeholder="Unit (e.g., g, ml, cup, oz)" list="unit-suggestions">
+            
+            <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                <div style="flex: 1;">
+                    <label for="quantity">Quantity</label>
+                    <input type="number" name="quantity" id="quantity" placeholder="Quantity" value="1" min="0" step="any">
+                </div>
+                <div style="flex: 1;">
+                    <label for="unit">Unit</label>
+                    <input type="text" name="unit" id="unit" placeholder="Unit (e.g., g, ml, cup)" list="unit-suggestions">
+                </div>
+            </div>
+            
             <datalist id="unit-suggestions">
                 <option value="g">
                 <option value="kg">
@@ -40,22 +39,57 @@
                 <option value="teaspoon">
                 <option value="unit">
             </datalist>
-            <button type="submit">Add Ingredient</button>
+            <button type="submit" style="width: 100%;">
+                <i data-lucide="plus"></i> Add to Pantry
+            </button>
         </form>
-        <div class="small-text">Acceptable units: g, kg, lb, oz, ml, l, cup, tbsp, tablespoon, tsp, teaspoon, unit.</div>
+    </section>
 
-        <!-- Area for server-side prompts like unit conversions -->
-        <div id="user-prompts"></div>
+    <!-- Batch Add Ingredients Section -->
+    <section>
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="layers" style="color: var(--primary);"></i> Batch Add</h2>
+        <form id="batch-add-form" hx-post="/batch_add_ingredients" hx-target="#ingredient-list-container" hx-swap="innerHTML" hx-on:htmx:after-request="this.reset()" class="card">
+            <label for="ingredients_list">List of Ingredients (comma-separated)</label>
+            <textarea name="ingredients_list" id="ingredients_list" placeholder="e.g., carrots, onions, celery" rows="3" style="min-height: 100px;"></textarea>
+            <button type="submit" style="width: 100%;" class="button-secondary">
+                <i data-lucide="plus-square"></i> Batch Add
+            </button>
+            <p class="small-text" style="margin-top: 1rem; margin-bottom: 0;">This will add new ingredients with 0 quantity. You can edit details later.</p>
+        </form>
+    </section>
+</div>
 
-        <hr>
+<!-- Area for server-side prompts like unit conversions -->
+<div id="user-prompts"></div>
 
-        <!-- Pantry List -->
-        <h2>My Pantry</h2>
-        <div id="ingredient-list-container">
-            {% with show_edit_buttons=True %}
-                {% include '_ingredients_list.html' %}
-            {% endwith %}
-        </div>
+<hr>
+
+<div class="stock-header" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem;">
+    <h2 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0;"><i data-lucide="archive" style="color: var(--primary);"></i> My Stock</h2>
+    
+    <!-- Quick Search / Filter -->
+    <div class="search-container" style="position: relative;">
+        <i data-lucide="search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px; height: 18px;"></i>
+        <input type="search" name="q" placeholder="Filter pantry by name..." 
+               hx-get="/pantry" 
+               hx-trigger="keyup changed delay:300ms, search" 
+               hx-target="#ingredient-list-container" 
+               hx-swap="innerHTML"
+               style="padding-left: 2.75rem; margin-bottom: 0;">
     </div>
-</body>
-</html>
+
+    <!-- Category Jump Links -->
+    <div class="category-chips">
+        {% for category in ingredients.keys() %}
+        <a href="#cat-{{ category|replace(' ', '-') }}" class="chip">
+            {{ category }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="ingredient-list-container">
+    {% with show_edit_buttons=True %}
+        {% include '_ingredients_list.html' %}
+    {% endwith %}
+</div>
