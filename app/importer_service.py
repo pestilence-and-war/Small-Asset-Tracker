@@ -1,6 +1,6 @@
 import json
 import os
-from app.api_clients.google_client import GoogleClient
+from app.api_clients.ollama_client import OllamaClient
 from dotenv import load_dotenv
 from PIL import Image
 
@@ -91,12 +91,7 @@ def import_recipe_from_text(text: str) -> dict:
     ---
     """
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            print("Error: GOOGLE_API_KEY not found in environment variables.")
-            return {}
-
-        client = GoogleClient(api_key=api_key)
+        client = OllamaClient()
         response_text = client.generate_content(
             contents=[prompt],
             temperature=0.1
@@ -140,16 +135,11 @@ def import_recipe_from_image(image_path: str) -> dict:
     }
     """
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            print("Error: GOOGLE_API_KEY not found in environment variables.")
-            return {}
-
         if not os.path.exists(image_path):
             print(f"Error: Image file not found at {image_path}")
             return {}
 
-        client = GoogleClient(api_key=api_key)
+        client = OllamaClient()
         image = Image.open(image_path)
 
         response_text = client.generate_content(

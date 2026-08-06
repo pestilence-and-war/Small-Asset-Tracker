@@ -1,82 +1,142 @@
-/* General print styles */
-body {
-    font-family: sans-serif;
-    line-height: 1.5;
-    color: #000;
-    background-color: #fff;
+/* Print Media Stylesheet */
+@media print {
+    /* Hide non-essential elements */
+    header,
+    nav,
+    form,
+    button,
+    .no-print,
+    .welcome-container,
+    .header-wrapper,
+    #back-to-top,
+    .modal,
+    a[href].button,
+    .htmx-indicator {
+        display: none !important;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #000 !important;
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 11pt;
+        line-height: 1.4;
+    }
+
+    .container, main {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .meal-plan-print-grid {
+        display: block !important;
+    }
+
+    .meal-plan-section,
+    .shopping-list-section {
+        display: block !important;
+        margin-bottom: 1.5rem !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .print-section-title {
+        font-size: 14pt !important;
+        font-weight: bold !important;
+        margin-bottom: 0.5rem !important;
+        border-bottom: 2px solid #000 !important;
+        padding-bottom: 0.25rem !important;
+        color: #000 !important;
+        display: block !important;
+    }
+
+    .print-section-title i {
+        display: none !important;
+    }
+
+    .card,
+    .meal-plan-card,
+    .shopping-list-card {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+    }
+
+    #meal-plan-list {
+        display: block !important;
+        margin: 0 0 1rem 0 !important;
+        padding: 0 !important;
+        list-style: none !important;
+    }
+
+    .meal-plan-print-item {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 0.4rem 0 !important;
+        border-bottom: 1px solid #ddd !important;
+        background: transparent !important;
+    }
+
+    .meal-name {
+        font-weight: bold !important;
+        color: #000 !important;
+    }
+
+    .meal-multiplier {
+        border: 1px solid #999 !important;
+        color: #000 !important;
+        background: transparent !important;
+        padding: 0.1rem 0.4rem !important;
+        font-weight: bold !important;
+        border-radius: 3px !important;
+    }
+
+    #shopping-list {
+        display: block !important;
+    }
+
+    .category-section {
+        margin-bottom: 1rem !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .category-section h4 {
+        font-size: 12pt !important;
+        font-weight: bold !important;
+        border-bottom: 1px solid #000 !important;
+        margin-bottom: 0.35rem !important;
+        padding-bottom: 0.15rem !important;
+        color: #000 !important;
+        text-transform: capitalize !important;
+    }
+
+    .shopping-list-category {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        list-style: none !important;
+    }
+
+    .shopping-list-category li {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 0.3rem 0 !important;
+        border-bottom: 1px dotted #ccc !important;
+        font-size: 11pt !important;
+    }
+
+    .ingredient-name {
+        font-weight: 500 !important;
+        color: #000 !important;
+    }
 }
 
-/* Hide non-essential elements */
-header,
-nav,
-form,
-button,
-.welcome-container,
-.meal-plan-container h2,
-.meal-plan-container form,
-#meal-plan-list,
-.meal-plan-container h3:first-of-type,
-a[href],
-.button,
-.button-secondary,
-.modal {
-    display: none !important;
-}
-
-/* Show only the shopping list */
-#shopping-list-container {
-    display: block !important;
-}
-
-/* Shopping list styles */
-#shopping-list {
-    display: block !important;
-    margin: 0;
-    padding: 0;
-    border: none;
-}
-
-.shopping-list-category {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.shopping-list-category li {
-    margin: 0;
-    padding: 5px 0;
-    border-bottom: 1px solid #ccc;
-}
-
-.shopping-list-category li:last-child {
-    border-bottom: none;
-}
-
-.ingredient-name {
-    font-weight: bold;
-}
-
-.ingredient-quantity {
-    margin-left: 10px;
-}
-
-.ingredient-unit {
-    margin-left: 5px;
-}
-
-/* Remove extra white space */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-h3 {
-    margin-bottom: 10px;
-    font-size: 1.2em;
-}
-
-h4 {
-    margin-bottom: 5px;
-    font-size: 1.1em;
-}

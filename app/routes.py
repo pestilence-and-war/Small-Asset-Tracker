@@ -7,7 +7,7 @@ from app.units import (
     convert_to_base, needs_conversion_prompt, get_conversion_prompt_html,
     get_base_unit_type, get_base_unit, get_new_ingredient_conversion_prompt_html,
     convert_units, format_fraction, convert_from_base, parse_quantity,
-    parse_quantity_and_unit
+    parse_quantity_and_unit, get_category_density
 )
 import os
 from werkzeug.utils import secure_filename
@@ -153,115 +153,161 @@ def scanner():
 
 @app.route('/api/add_item_by_upc', methods=['POST'])
 def add_item_by_upc():
-    """
-    Handles adding an ingredient to the pantry via a UPC code.
-    Receives a JSON object with a 'upc' key.
+    """Handles adding an ingredient to the pantry via a UPC barcode code.
+
+    Receives JSON {'upc': '...'}. Looks up local `upc_data` first, then Open Food Facts.
+    Saves barcode mapping into `upc_data` table for instant future scans.
     """
     data = request.get_json()
     if not data or 'upc' not in data:
-        return jsonify({'status': 'error', 'message': 'Invalid request. Missing UPC.'}), 400
+        return jsonify({'status': 'error', 'message': 'Invalid request. Missing UPC barcode.'}), 400
 
-    upc = data['upc']
+    upc = str(data['upc']).strip()
     conn = get_db_connection()
     try:
-        with conn: # Use 'with' for automatic transaction management
-            # 1. Look up the UPC in our upc_data table (if it exists)
-            upc_item = None
-            try:
-                upc_item = conn.execute("SELECT name, quantity, unit FROM upc_data WHERE upc = ?", (upc,)).fetchone()
-            except sqlite3.OperationalError:
-                # Table doesn't exist yet, move to API lookup
-                pass
+        with conn:
+            upc_item = conn.execute("SELECT * FROM upc_data WHERE upc = ?", (upc,)).fetchone()
+
+            brand = None
+            image_url = None
 
             if not upc_item:
-                # 1b. If not in local DB, try Open Food Facts API
+                # Query Open Food Facts API
                 off_data = off_client.get_product_by_barcode(upc)
                 if not off_data:
-                    return jsonify({'status': 'error', 'message': f'UPC {upc} not found in database or external API.'}), 404
-                
-                # Sensible defaults for OFF data
+                    return jsonify({
+                        'status': 'not_found',
+                        'upc': upc,
+                        'message': f'Barcode {upc} not recognized. Add details below to save it for future scans.'
+                    }), 200
+
                 item_name = off_data['name'].strip().lower()
-                
-                # Auto-detect category
-                category = off_data['category']
-                density = 1.0 if off_data['unit_hint'] == 'volume' else None # Default 1.0 for liquids
+                category = off_data.get('category', 'Other')
                 image_url = off_data.get('image_url')
-                
-                # Map some OFF categories to our local ones
+                brand = off_data.get('brand')
+
                 cat_map = {
                     "Beverages": "Beverages", "Sodas": "Beverages", "Waters": "Beverages", "Fruit Juices": "Beverages",
                     "Canned Foods": "Canned Goods", "Plant Based Foods": "Fresh Produce",
-                    "Groceries": "Pantry", "Snacks": "Snacks", "Condiments": "Condiments"
+                    "Groceries": "Pantry", "Snacks": "Snacks", "Condiments": "Condiments", "Baking": "Baking"
                 }
                 local_category = cat_map.get(category, "Other")
 
-                # Attempt to parse quantity from "500 g" etc. If it fails, default to 1 unit.
-                item_quantity = 1
+                item_quantity = 1.0
                 item_unit = 'unit'
-                if off_data['quantity_str']:
+                if off_data.get('quantity_str'):
                     parsed_qty, parsed_unit = parse_quantity_and_unit(off_data['quantity_str'])
                     if parsed_qty is not None and parsed_unit:
                         item_quantity = parsed_qty
                         item_unit = parsed_unit
 
-                # If the name is missing after all that, we can't add it.
                 if not item_name:
-                    return jsonify({'status': 'error', 'message': f'UPC {upc} found but missing a name.'}), 404
+                    return jsonify({'status': 'not_found', 'upc': upc, 'message': f'Barcode {upc} found but missing item name.'}), 200
 
             else:
-                # Found in local database
                 item_name = upc_item['name'].strip().lower()
-                item_quantity = upc_item['quantity'] if upc_item['quantity'] is not None else 1
+                item_quantity = upc_item['quantity'] if upc_item['quantity'] is not None else 1.0
                 item_unit = upc_item['unit'].strip().lower() if upc_item['unit'] else 'unit'
                 local_category = "Other"
-                density = None
-                image_url = None
+                brand = upc_item['brand'] if 'brand' in upc_item.keys() else None
+                image_url = upc_item['image_url'] if 'image_url' in upc_item.keys() else None
 
-            # 2. Check if this ingredient already exists in the pantry
+            # Find matching ingredient in pantry
             ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (item_name,)).fetchone()
+            if not ingredient:
+                # Try fuzzy/substring match
+                ingredient = conn.execute("SELECT * FROM ingredients WHERE name LIKE ?", (f"%{item_name}%",)).fetchone()
 
             if ingredient:
-                # Ingredient exists, update its quantity
                 ingredient_id = ingredient['id']
-                # Convert the quantity from the UPC data to the ingredient's base unit
-                quantity_to_add_in_base_unit, _, _ = convert_to_base(item_quantity, item_unit, ingredient_id, conn=conn)
-                conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (quantity_to_add_in_base_unit, ingredient_id))
-                
-                # Update image_url if we have a new one and the old one is missing
+                item_name = ingredient['name']
+                quantity_to_add_in_base, _, _ = convert_to_base(item_quantity, item_unit, ingredient_id=ingredient_id, conn=conn)
+                conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (quantity_to_add_in_base, ingredient_id))
+
                 if image_url and not ingredient['image_url']:
                     conn.execute("UPDATE ingredients SET image_url = ? WHERE id = ?", (image_url, ingredient_id))
-                
-                message = f"Updated quantity for {item_name}."
+
+                message = f"Added {item_quantity} {item_unit} to {item_name.title()}."
 
             else:
-                # Ingredient is new, create it
+                # Create new ingredient
                 base_unit_type = get_base_unit_type(item_unit)
-                if not base_unit_type:
-                    # If the unit is unknown (e.g., 'can', 'box'), treat it as 'count'
-                    base_unit_type = 'count'
-                    base_unit = 'unit'
-                    converted_quantity = item_quantity
-                else:
-                    base_unit = get_base_unit(base_unit_type)
-                    # Convert the quantity from the UPC data to the new base unit
-                    # For new ingredients, we need to pass density if it's available
-                    converted_quantity, _, _ = convert_to_base(item_quantity, item_unit, density_g_ml=density, conn=conn)
+                base_unit = get_base_unit(base_unit_type)
+                density = get_category_density(local_category)
 
-                conn.execute(
+                converted_quantity, _, _ = convert_to_base(item_quantity, item_unit, density_g_ml=density, conn=conn)
+
+                cursor = conn.execute(
                     'INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, category, density_g_ml, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
                     (item_name, converted_quantity, base_unit, base_unit_type, local_category, density, image_url)
                 )
-                message = f"Added new item: {item_name} (Category: {local_category})."
+                ingredient_id = cursor.lastrowid
+                message = f"Added new item: {item_name.title()} ({item_quantity} {item_unit})."
 
-            return jsonify({'status': 'success', 'message': message, 'name': item_name})
+            # Save/update barcode mapping in upc_data
+            conn.execute(
+                "INSERT OR REPLACE INTO upc_data (upc, name, brand, quantity, unit, ingredient_id, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (upc, item_name, brand, item_quantity, item_unit, ingredient_id, image_url)
+            )
 
-    except (ValueError, TypeError) as e:
-        # This can happen if unit conversion fails
-        print(f"Error in add_item_by_upc: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+            return jsonify({
+                'status': 'success',
+                'message': message,
+                'name': item_name.title(),
+                'brand': brand,
+                'quantity': item_quantity,
+                'unit': item_unit,
+                'image_url': image_url,
+                'upc': upc
+            })
+
     except Exception as e:
-        print(f"An unexpected error occurred in add_item_by_upc: {e}")
-        return jsonify({'status': 'error', 'message': 'An internal error occurred.'}), 500
+        print(f"Error in add_item_by_upc: {e}")
+        return jsonify({'status': 'error', 'message': f"Could not add item: {str(e)}"}), 200
+
+
+@app.route('/api/link_upc', methods=['POST'])
+def link_upc():
+    """Manually maps an unrecognized UPC barcode to an ingredient."""
+    data = request.get_json()
+    if not data or 'upc' not in data or 'name' not in data:
+        return jsonify({'status': 'error', 'message': 'Missing UPC or ingredient name.'}), 400
+
+    upc = str(data['upc']).strip()
+    name = str(data['name']).strip().lower()
+    quantity = float(data.get('quantity', 1.0))
+    unit = str(data.get('unit', 'unit')).strip().lower()
+    category = str(data.get('category', 'Other')).strip()
+
+    conn = get_db_connection()
+    try:
+        with conn:
+            ingredient = conn.execute("SELECT * FROM ingredients WHERE name = ?", (name,)).fetchone()
+            if ingredient:
+                ingredient_id = ingredient['id']
+                qty_base, _, _ = convert_to_base(quantity, unit, ingredient_id=ingredient_id, conn=conn)
+                conn.execute("UPDATE ingredients SET quantity = quantity + ? WHERE id = ?", (qty_base, ingredient_id))
+            else:
+                base_unit_type = get_base_unit_type(unit)
+                base_unit = get_base_unit(base_unit_type)
+                density = get_category_density(category)
+                qty_base, _, _ = convert_to_base(quantity, unit, density_g_ml=density, conn=conn)
+
+                cursor = conn.execute(
+                    "INSERT INTO ingredients (name, quantity, base_unit, base_unit_type, category, density_g_ml) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, qty_base, base_unit, base_unit_type, category, density)
+                )
+                ingredient_id = cursor.lastrowid
+
+            conn.execute(
+                "INSERT OR REPLACE INTO upc_data (upc, name, quantity, unit, ingredient_id) VALUES (?, ?, ?, ?, ?)",
+                (upc, name, quantity, unit, ingredient_id)
+            )
+
+        return jsonify({'status': 'success', 'message': f"Mapped barcode {upc} to {name.title()}!"})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 
 @app.route('/pantry')

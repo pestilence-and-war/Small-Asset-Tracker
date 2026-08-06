@@ -1,127 +1,76 @@
 <div class="pantry-header" style="margin-bottom: 2rem;">
-    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="scan-barcode" style="color: var(--primary);"></i> Barcode Scanner</h1>
-    <p style="color: var(--text-muted);">Scan a product barcode to quickly add it to your pantry.</p>
+    <h1 style="display: flex; align-items: center; gap: 0.75rem;"><i data-lucide="scan-barcode" style="color: var(--primary);"></i> Smart Barcode Scanner</h1>
+    <p style="color: var(--text-muted);">Scan product barcodes to instantly add or update inventory items in your pantry.</p>
 </div>
 
-<div class="container card" style="text-align: center; padding: 2rem;">
-    <div id="scanner-controls" style="margin-bottom: 2rem;">
-        <button id="start-scan-btn" class="button-primary" style="padding: 1rem 2rem; font-size: 1.1rem;">
-            <i data-lucide="camera"></i> Start Camera
-        </button>
+<div class="pantry-management-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 2rem;">
+    <!-- Camera Viewfinder Card -->
+    <div class="card scanner-card" style="margin-bottom: 0;">
+        <div id="scanner-controls">
+            <div style="background: var(--primary-light); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: var(--primary);">
+                <i data-lucide="camera" style="width: 32px; height: 32px;"></i>
+            </div>
+            <h3>Point Camera at Barcode</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Position the UPC barcode inside the camera window below.</p>
+            <button id="start-scan-btn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-size: 1rem;">
+                <i data-lucide="video"></i> Start Scanner Camera
+            </button>
+        </div>
+        
+        <div id="reader-container" class="viewfinder-box" style="display: none;">
+            <div id="reader"></div>
+            <button id="stop-scan-btn" class="btn btn-danger" style="position: absolute; top: 0.75rem; right: 0.75rem; z-index: 10; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                <i data-lucide="x"></i> Stop
+            </button>
+        </div>
     </div>
-    
-    <div id="reader-container" style="display: none; position: relative; max-width: 500px; margin: 0 auto; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--border);">
-        <div id="reader"></div>
-        <button id="stop-scan-btn" class="button-danger" style="position: absolute; top: 1rem; right: 1rem; z-index: 10; padding: 0.5rem;">
-            <i data-lucide="x"></i>
-        </button>
-    </div>
-    
-    <div id="result" style="margin-top: 2rem;"></div>
-</div>
 
-<style>
-    #reader video {
-        border-radius: var(--radius-sm);
-    }
-    .success-message {
-        color: #065f46;
-        background: #ecfdf5;
-        padding: 1.5rem;
-        border-radius: var(--radius);
-        border: 1px solid #10b981;
-        margin-top: 1rem;
-        font-weight: 500;
-    }
-    .error-message {
-        color: #991b1b;
-        background: #fef2f2;
-        padding: 1.5rem;
-        border-radius: var(--radius);
-        border: 1px solid #ef4444;
-        margin-top: 1rem;
-    }
-</style>
+    <!-- Manual Barcode Search & Scan Results -->
+    <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
+        <h3><i data-lucide="search" style="color: var(--primary);"></i> Manual UPC Entry</h3>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1rem;">If you cannot use your camera, enter the numbers under the barcode manually.</p>
+        
+        <form id="manual-upc-form" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;" onsubmit="handleManualUPC(event)">
+            <input type="text" id="manual-upc-input" placeholder="e.g. 041331021703" required style="margin-bottom: 0;">
+            <button type="submit" class="btn btn-primary" style="white-space: nowrap;">
+                <i data-lucide="arrow-right"></i> Check
+            </button>
+        </form>
+
+        <div id="result" style="flex: 1;"></div>
+    </div>
+</div>
 
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script>
     (function() {
-        // Initialize Lucide icons for the new content
-        if (window.lucide) {
-            lucide.createIcons();
-        }
+        if (window.lucide) lucide.createIcons();
 
         const startScanBtn = document.getElementById('start-scan-btn');
         const stopScanBtn = document.getElementById('stop-scan-btn');
         const readerContainer = document.getElementById('reader-container');
         const resultDiv = document.getElementById('result');
-        let html5QrCode;
+        let html5QrCode = null;
 
         startScanBtn.addEventListener('click', () => {
             readerContainer.style.display = 'block';
             startScanBtn.parentElement.style.display = 'none';
-            resultDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--text-muted);"><i data-lucide="loader" class="animate-spin"></i> Requesting camera access...</div>';
+            resultDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--text-muted); padding: 2rem;"><i data-lucide="loader" class="animate-spin"></i> Initializing camera...</div>';
             if (window.lucide) lucide.createIcons();
 
             html5QrCode = new Html5Qrcode("reader");
-            const config = {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-            };
+            const config = { fps: 10, qrbox: { width: 260, height: 180 } };
 
-            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
                 stopScanner();
-                resultDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--primary);"><i data-lucide="loader" class="animate-spin"></i> Processing UPC: <strong>${decodedText}</strong>...</div>`;
+                processBarcode(decodedText);
+            }).catch((err) => {
+                console.error("Camera error:", err);
+                resultDiv.innerHTML = '<div class="card" style="border-color: var(--danger); background: var(--danger-light); color: #991b1b; padding: 1rem;"><i data-lucide="alert-circle"></i> Camera access denied or not available. Please enter UPC manually.</div>';
                 if (window.lucide) lucide.createIcons();
-
-                fetch('/api/add_item_by_upc', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ upc: decodedText }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        resultDiv.innerHTML = `
-                            <div class="success-message">
-                                <i data-lucide="check-circle" style="margin-bottom: 0.5rem;"></i>
-                                <div>${data.message}</div>
-                            </div>
-                            <button id="scan-again-btn" class="button-secondary" style="margin-top: 1.5rem;">
-                                <i data-lucide="refresh-cw"></i> Scan Another Item
-                            </button>
-                        `;
-                    } else {
-                        resultDiv.innerHTML = `
-                            <div class="error-message">
-                                <i data-lucide="alert-circle" style="margin-bottom: 0.5rem;"></i>
-                                <div>${data.message}</div>
-                            </div>
-                            <button id="scan-again-btn" class="button-secondary" style="margin-top: 1.5rem;">
-                                <i data-lucide="refresh-cw"></i> Try Again
-                            </button>
-                        `;
-                    }
-                    if (window.lucide) lucide.createIcons();
-                    
-                    document.getElementById('scan-again-btn').addEventListener('click', () => {
-                        resultDiv.innerHTML = '';
-                        startScanBtn.parentElement.style.display = 'block';
-                    });
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    resultDiv.innerHTML = '<div class="error-message">Connection error. Please try again.</div>';
-                });
-            };
-
-            html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
-                .catch((err) => {
-                    console.error("Unable to start scanning.", err);
-                    resultDiv.innerHTML = '<div class="error-message">Error: Could not start scanner. Please ensure camera permissions are granted.</div>';
-                    readerContainer.style.display = 'none';
-                    startScanBtn.parentElement.style.display = 'block';
-                });
+                readerContainer.style.display = 'none';
+                startScanBtn.parentElement.style.display = 'block';
+            });
         });
 
         stopScanBtn.addEventListener('click', stopScanner);
@@ -137,5 +86,125 @@
                 startScanBtn.parentElement.style.display = 'block';
             }
         }
+
+        window.handleManualUPC = function(e) {
+            e.preventDefault();
+            const upc = document.getElementById('manual-upc-input').value.trim();
+            if (upc) processBarcode(upc);
+        };
+
+        window.processBarcode = function(upc) {
+            resultDiv.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--primary); padding: 2rem;">
+                    <i data-lucide="loader" class="animate-spin"></i> Looking up product barcode: <strong>${upc}</strong>...
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+
+            fetch('/api/add_item_by_upc', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ upc: upc })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderSuccessCard(data);
+                } else if (data.status === 'not_found') {
+                    renderUnrecognizedCard(data.upc);
+                } else {
+                    renderErrorCard(data.message || 'Could not process product scan.');
+                }
+            })
+            .catch(err => {
+                renderErrorCard('Network connection error. Please try again.');
+            });
+        };
+
+        function renderSuccessCard(data) {
+            resultDiv.innerHTML = `
+                <div class="card" style="background: var(--success-light); border-color: var(--success); text-align: left; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        ${data.image_url ? `<img src="${data.image_url}" style="width: 56px; height: 56px; object-fit: contain; border-radius: 8px; background: #fff; border: 1px solid var(--border);" alt="Product">` : `<div style="width: 56px; height: 56px; border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; color: var(--success);"><i data-lucide="check-circle-2" style="width: 28px; height: 28px;"></i></div>`}
+                        <div>
+                            <h4 style="margin: 0; color: #065f46; font-size: 1.1rem;">${data.name}</h4>
+                            <p style="margin: 0.25rem 0 0; color: #047857; font-size: 0.875rem;">${data.message}</p>
+                            <span class="chip" style="margin-top: 0.5rem; display: inline-block; background: #fff; color: #065f46;">UPC: ${data.upc}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost" onclick="resetScannerResult()" style="margin-top: 1rem; width: 100%;">
+                        <i data-lucide="refresh-cw"></i> Scan Next Item
+                    </button>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function renderUnrecognizedCard(upc) {
+            resultDiv.innerHTML = `
+                <div class="card" style="border-color: var(--accent); background: var(--accent-light); text-align: left; padding: 1.25rem;">
+                    <h4 style="color: #92400e; margin-bottom: 0.5rem;"><i data-lucide="help-circle"></i> Unknown Barcode: ${upc}</h4>
+                    <p style="color: #b45309; font-size: 0.875rem; margin-bottom: 1rem;">Map this barcode to a pantry ingredient once, and it will auto-add on future scans!</p>
+                    <form onsubmit="submitLinkUPC(event, '${upc}')">
+                        <label for="link-name">Ingredient Name</label>
+                        <input type="text" id="link-name" placeholder="e.g. Olive Oil" required autocomplete="off">
+                        <div style="display: flex; gap: 0.5rem;">
+                            <div style="flex: 1;">
+                                <label for="link-qty">Quantity</label>
+                                <input type="number" id="link-qty" value="1" min="0.1" step="any" required>
+                            </div>
+                            <div style="flex: 1;">
+                                <label for="link-unit">Unit</label>
+                                <input type="text" id="link-unit" placeholder="e.g. fl oz, oz, bottle" value="unit" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%; background: #d97706;">
+                            <i data-lucide="save"></i> Save Barcode Mapping
+                        </button>
+                    </form>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        window.submitLinkUPC = function(e, upc) {
+            e.preventDefault();
+            const name = document.getElementById('link-name').value;
+            const quantity = document.getElementById('link-qty').value;
+            const unit = document.getElementById('link-unit').value;
+
+            fetch('/api/link_upc', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ upc, name, quantity, unit })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderSuccessCard({ name: name.toUpperCase(), message: data.message, upc: upc });
+                } else {
+                    renderErrorCard(data.message);
+                }
+            });
+        };
+
+        function renderErrorCard(msg) {
+            resultDiv.innerHTML = `
+                <div class="card" style="background: var(--danger-light); border-color: var(--danger); text-align: left; padding: 1.25rem;">
+                    <h4 style="color: #991b1b; margin-bottom: 0.5rem;"><i data-lucide="alert-circle"></i> Scan Error</h4>
+                    <p style="color: #991b1b; font-size: 0.875rem; margin-bottom: 1rem;">${msg}</p>
+                    <button class="btn btn-ghost" onclick="resetScannerResult()" style="width: 100%;">
+                        <i data-lucide="refresh-cw"></i> Try Again
+                    </button>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        window.resetScannerResult = function() {
+            resultDiv.innerHTML = '';
+            document.getElementById('manual-upc-input').value = '';
+        };
     })();
 </script>
+

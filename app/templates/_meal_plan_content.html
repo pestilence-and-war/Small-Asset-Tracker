@@ -1,16 +1,16 @@
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
+<div class="meal-plan-print-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
     <!-- List of meals in the plan -->
-    <section>
-        <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list" style="color: var(--primary);"></i> Current Meal Plan</h3>
-        <div class="card">
+    <section class="meal-plan-section">
+        <h3 class="print-section-title" style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="list" style="color: var(--primary);"></i> Current Meal Plan</h3>
+        <div class="card meal-plan-card">
             <ul id="meal-plan-list" style="display: grid; gap: 0.75rem;">
                 {% for item in meal_plan_items %}
-                    <li style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8fafc; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                    <li class="meal-plan-print-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8fafc; border-radius: var(--radius-sm); border: 1px solid var(--border);">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-weight: 600;">{{ item.meal_name }}</span>
-                            <span style="font-size: 0.8125rem; color: var(--text-muted); background: #fff; padding: 0.125rem 0.5rem; border-radius: 4px; border: 1px solid var(--border);">x{{ item.multiplier }}</span>
+                            <span class="meal-name" style="font-weight: 600;">{{ item.meal_name }}</span>
+                            <span class="meal-multiplier" style="font-size: 0.8125rem; color: var(--text-muted); background: #fff; padding: 0.125rem 0.5rem; border-radius: 4px; border: 1px solid var(--border);">x{{ item.multiplier }}</span>
                         </div>
-                        <button hx-delete="/meal-plan/remove/{{ item.id }}" hx-target="#meal-plan-content" hx-swap="innerHTML" class="button-danger" style="padding: 0.375rem 0.5rem; font-size: 0.75rem;">
+                        <button hx-delete="/meal-plan/remove/{{ item.id }}" hx-target="#meal-plan-content" hx-swap="innerHTML" class="button-danger no-print" style="padding: 0.375rem 0.5rem; font-size: 0.75rem;">
                             <i data-lucide="x" style="width: 14px; height: 14px;"></i>
                         </button>
                     </li>
@@ -25,19 +25,20 @@
     </section>
 
     <!-- Shopping List Section -->
-    <section id="shopping-list-container">
-        <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="shopping-cart" style="color: var(--secondary);"></i> Shopping List</h3>
-        <div class="card">
+    <section id="shopping-list-container" class="shopping-list-section">
+        <h3 class="print-section-title" style="display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="shopping-cart" style="color: var(--secondary);"></i> Shopping List</h3>
+        <div class="card shopping-list-card">
             {% include '_shopping_list.html' %}
             
-            <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <div class="no-print" style="margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
                 <a href="/meal-plan/export" class="button button-secondary" style="flex: 1; min-width: 140px;" download="shopping-list.json">
                     <i data-lucide="download"></i> Export JSON
                 </a>
                 <button class="button" style="flex: 1; min-width: 140px;" onclick="window.print()">
-                    <i data-lucide="printer"></i> Print List
+                    <i data-lucide="printer"></i> Print List & Meals
                 </button>
             </div>
         </div>
     </section>
 </div>
+
